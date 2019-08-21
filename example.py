@@ -5,6 +5,7 @@ from pygame.locals import *
 import numpy as np
 import time
 from plotting import Navigator
+from face_detect import Camera
 
 # Speed of the drone
 S = 60
@@ -29,7 +30,7 @@ class FrontEnd(object):
 
         # Creat pygame window
         pygame.display.set_caption("Tello video stream")
-        self.screen = pygame.display.set_mode([960, 720])
+        self.screen = pygame.display.set_mode([640, 480])
 
         # Init Tello object that interacts with the Tello drone
         self.tello = Tello()
@@ -43,6 +44,9 @@ class FrontEnd(object):
 
         self.send_rc_control = False
         self.send_navigator = False
+        self.face_follow = False
+
+        self.cam = Camera()
 
         # create update timer
         pygame.time.set_timer(USEREVENT + 1, 50)
@@ -69,11 +73,13 @@ class FrontEnd(object):
         frame_read = self.tello.get_frame_read()
 
         should_stop = False
-        while not should_stop:
+        while not should_stop:           
+
+            img, directions = self.cam.detectFace(cv2.resize(frame_read.frame, (640,480)))
 
             for event in pygame.event.get():
                 if event.type == USEREVENT + 1:
-                    self.update()
+                    self.update(directions)
                 elif event.type == QUIT:
                     should_stop = True
                 elif event.type == KEYDOWN:
@@ -88,7 +94,8 @@ class FrontEnd(object):
                 frame_read.stop()
                 break
 
-            #cv2.imshow("frame",frame_read.frame)
+            # cv2.imshow("frame",img)
+            # print("showing")
 
             # c=cv2.waitKey(1)
 
@@ -101,9 +108,9 @@ class FrontEnd(object):
             # elif c==108:
             #     self.tello.land()
             #     self.send_rc_control = False
-                
+            
             self.screen.fill([0, 0, 0])
-            frame = cv2.cvtColor(frame_read.frame, cv2.COLOR_BGR2RGB)
+            frame = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             frame = np.rot90(frame)
             frame = np.flipud(frame)
             frame = pygame.surfarray.make_surface(frame)
@@ -160,8 +167,12 @@ class FrontEnd(object):
             self.send_navigator = True
         elif key == pygame.K_m:
             self.send_navigator = False
+        elif key == pygame.K_f:
+            self.face_follow = True
+        elif key == pygame.K_g:
+            self.face_follow = False
 
-    def update(self):
+    def update(self, dirs):
         """ Update routine. Send velocities to Tello."""
         if self.send_rc_control:
             if self.send_navigator:
@@ -171,6 +182,9 @@ class FrontEnd(object):
                     self.tello.send_rc_control(int(20*vx[i]), int(20*vy[i]), int(200*vz[i]), 0)
                     time.sleep(0.5)
                 self.send_navigator=False
+            elif self.face_follow:
+                dirs=dirs*20
+                self.tello.send_rc_control(int(dirs[0]), int(dirs[1]), int(dirs[2]), int(dirs[3]*2))
             else:
                 self.tello.send_rc_control(self.left_right_velocity, self.for_back_velocity, self.up_down_velocity,
                                            self.yaw_velocity)
