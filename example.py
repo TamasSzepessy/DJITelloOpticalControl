@@ -4,8 +4,13 @@ import pygame
 from pygame.locals import *
 import numpy as np
 import time
+import queue
+import threading
+from collections import deque
 from plotting import Navigator
 from face_detect import Camera
+from calibration import Calib
+from timeit import default_timer as timer
 
 # Speed of the drone
 S = 60
@@ -32,8 +37,13 @@ class FrontEnd(object):
         pygame.display.set_caption("Tello video stream")
         self.screen = pygame.display.set_mode([640, 480])
 
+        # create queue and event for data communications
+        self.data_queue=queue.Queue()
+        self.quit_event=threading.Event()
+        self.quit_event.clear()
+
         # Init Tello object that interacts with the Tello drone
-        self.tello = Tello()
+        self.tello = Tello(self.data_queue, self.quit_event)
 
         # Drone velocities between -100~100
         self.for_back_velocity = 0
@@ -45,11 +55,14 @@ class FrontEnd(object):
         self.send_rc_control = False
         self.send_navigator = False
         self.face_follow = False
+        self.calibrate = False
 
         self.cam = Camera()
+        self.cal = Calib()
 
         # create update timer
         pygame.time.set_timer(USEREVENT + 1, 50)
+
 
     def run(self):
 
@@ -71,20 +84,39 @@ class FrontEnd(object):
             return
 
         frame_read = self.tello.get_frame_read()
+        self.tello.get_data_read()
+        queue_diff = timer()
+        directions = np.zeros(4)
 
         should_stop = False
-        while not should_stop:           
+        while not should_stop:
+            img=cv2.resize(frame_read.frame, (640,480))
 
-            img, directions = self.cam.detectFace(cv2.resize(frame_read.frame, (640,480)))
+            if self.face_follow:
+                img, directions = self.cam.detectFace(img)
+
+            if self.calibrate:
+                img = self.cal.calibrator(img)
+                
+
+            if not self.data_queue.empty():
+                dt=timer()-queue_diff
+                q=self.data_queue.get()
+                # acc=q[0]*9.81
+                # att=q[1]
+                
+                queue_diff = timer()
 
             for event in pygame.event.get():
                 if event.type == USEREVENT + 1:
                     self.update(directions)
                 elif event.type == QUIT:
                     should_stop = True
+                    self.quit_event.set()
                 elif event.type == KEYDOWN:
                     if event.key == K_ESCAPE:
                         should_stop = True
+                        self.quit_event.set()
                     else:
                         self.keydown(event.key)
                 elif event.type == KEYUP:
@@ -163,14 +195,18 @@ class FrontEnd(object):
         elif key == pygame.K_l:  # land
             self.tello.land()
             self.send_rc_control = False
-        elif key == pygame.K_n:
-            self.send_navigator = True
-        elif key == pygame.K_m:
-            self.send_navigator = False
-        elif key == pygame.K_f:
-            self.face_follow = True
-        elif key == pygame.K_g:
-            self.face_follow = False
+        # elif key == pygame.K_n:
+        #     self.send_navigator = True
+        # elif key == pygame.K_m:
+        #     self.send_navigator = False
+        # elif key == pygame.K_f:
+        #     self.face_follow = True
+        # elif key == pygame.K_g:
+        #     self.face_follow = False
+        elif key == pygame.K_k:
+            self.calibrate = True
+        elif key == pygame.K_l:
+            self.calibrate = False
 
     def update(self, dirs):
         """ Update routine. Send velocities to Tello."""

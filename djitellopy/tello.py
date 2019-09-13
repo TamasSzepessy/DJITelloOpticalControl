@@ -3,7 +3,9 @@ import logging
 import socket
 import time
 import threading
+import queue
 import cv2
+import numpy as np
 from threading import Thread
 from djitellopy.decorators import accepts
 
@@ -17,6 +19,7 @@ class Tello:
     UDP_IP = '192.168.10.1'
     UDP_PORT = 8889
     RESPONSE_TIMEOUT = 7  # in seconds
+    TIMEOUT_WO_LOG = 0.5
     TIME_BTW_COMMANDS = 1  # in seconds
     TIME_BTW_RC_CONTROL_COMMANDS = 0.5  # in seconds
     RETRY_COUNT = 3
@@ -38,16 +41,20 @@ class Tello:
 
     # VideoCapture object
     cap = None
+    background_data_read = None
     background_frame_read = None
 
     stream_on = False
 
-    def __init__(self,
+    def __init__(self, data_queue, quit_event,
         host='192.168.10.1',
         port=8889,
         client_socket=None,
         enable_exceptions=False,
         retry_count=3):
+
+        self.data_queue = data_queue
+        self.quit_event = quit_event
 
         self.address = (host, port)
         self.response = None
@@ -93,6 +100,13 @@ class Tello:
             self.cap.open(self.get_udp_video_address())
 
         return self.cap
+
+    def get_data_read(self):
+        """Get the BackgroundDataRead object from the drone.
+        """
+        if self.background_data_read is None:
+            self.background_data_read = BackgroundDataRead(self, self.data_queue, self.quit_event).start()
+        return self.background_data_read
 
     def get_frame_read(self):
         """Get the BackgroundFrameRead object from the camera drone. Then, you just need to call
@@ -162,7 +176,7 @@ class Tello:
         """
         # Commands very consecutive makes the drone not respond to them. So wait at least self.TIME_BTW_COMMANDS seconds
 
-        self.LOGGER.info('Send command (no expect response): ' + command)
+        #self.LOGGER.info('Send command (no expect response): ' + command)
         self.clientSocket.sendto(command.encode('utf-8'), self.address)
 
     @accepts(command=str)
@@ -210,6 +224,7 @@ class Tello:
             - time?: get current fly time (s): time
             - height?: get height (cm): x: 0-3000
             - temp?: get temperature (°C): x: 0-90
+            - acceleration?: get IMU acceleration data (0.001g): x y z
             - attitude?: get IMU attitude data: pitch roll yaw
             - baro?: get barometer value (m): x
             - tof?: get distance value from TOF (cm): x: 30-1000
@@ -220,6 +235,57 @@ class Tello:
         """
 
         response = self.send_command_with_return(command)
+
+        try:
+            response = str(response)
+        except TypeError as e:
+            self.LOGGER.error(e)
+            pass
+
+        if ('error' not in response) and ('ERROR' not in response) and ('False' not in response):
+            if response.isdigit():
+                return int(response)
+            else:
+                return response
+        else:
+            return self.return_error_on_send_command(command, response, self.enable_exceptions)
+
+    @accepts(command=str)
+    def send_command_with_return_wo_log(self, command):
+        """Send command to Tello and wait for its response, w/o logging.
+        Return:
+            bool: True for successful, False for unsuccessful
+        """
+        # Commands very consecutive makes the drone not respond to them. So wait at least self.TIME_BTW_COMMANDS seconds
+        diff = time.time() * 1000 - self.last_received_command
+        if diff < self.TIME_BTW_COMMANDS:
+            time.sleep(diff)
+
+        timestamp = int(time.time() * 1000)
+
+        self.clientSocket.sendto(command.encode('utf-8'), self.address)
+
+        while self.response is None:
+            if (time.time() * 1000) - timestamp > self.TIMEOUT_WO_LOG * 1000:
+                self.LOGGER.warning('Timeout exceed on command ' + command)
+                return False
+
+        response = self.response.decode('utf-8').rstrip("\r\n")
+
+        self.response = None
+
+        self.last_received_command = time.time() * 1000
+
+        return response
+
+    @accepts(command=str)
+    def send_read_command_wo_log(self, command):
+        """Send set command to Tello and wait for its response, w/o logging.
+        Return:
+            bool: True for successful, False for unsuccessful
+        """
+
+        response = self.send_command_with_return_wo_log(command)
 
         try:
             response = str(response)
@@ -675,6 +741,58 @@ class Tello:
             self.background_frame_read.stop()
         if self.cap is not None:
             self.cap.release()
+
+class BackgroundDataRead:
+    """
+    This class reads flight data and battery data in the background.
+    """
+
+    def __init__(self, tello, data_queue, quit_event):
+        self.tello = tello
+        self.data_queue = data_queue
+        self.quit_event = quit_event
+
+        self.acc = np.zeros(3)
+        self.att = np.zeros(3)
+        #self.bat = 100
+
+        self.TIME_BTW_DATA_QUERY_COMMANDS=0.1
+        self.last_data_query_sent=0
+    
+    def start(self):
+        Thread(target=self.update_data, args=()).start()
+        return self
+
+    def update_data(self):
+        while not self.quit_event.isSet():
+            if int(time.time() * 1000) - self.last_data_query_sent < self.TIME_BTW_DATA_QUERY_COMMANDS:
+                pass
+            else:
+                self.last_data_query_sent = int(time.time() * 1000)            
+        
+                acc_temp=self.tello.send_read_command_wo_log("acceleration?")
+                try:
+                    if isinstance(acc_temp, str) and acc_temp!=False:
+                        acc_ar=acc_temp.split(';')
+                        if acc_ar[0].isnumeric:
+                            self.acc=(float(acc_ar[0][4:]),float(acc_ar[1][4:]),float(acc_ar[2][4:])) # x, y, z
+                except ValueError:
+                    print("acc error")
+                
+                att_temp=self.tello.send_read_command_wo_log("attitude?")
+                try:
+                    if isinstance(acc_temp, str) and att_temp!=False:
+                        att_ar=att_temp.split(';')
+                        if att_ar[0].isnumeric:
+                            self.att=(float(att_ar[0][6:]),float(att_ar[1][5:]),float(att_ar[2][4:])) # pitch, roll, yaw
+                except ValueError:
+                    print("att error")
+
+                #self.bat=self.tello.send_read_command_wo_log("battery?")
+                # if bat_temp
+                #     self.bat=int(bat_temp)  
+                            
+                self.data_queue.put((self.acc,self.att))
 
 
 class BackgroundFrameRead:

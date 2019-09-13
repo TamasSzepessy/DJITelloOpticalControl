@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 from timeit import default_timer as timer
+import time
 
 class Camera():
     def __init__(self):
@@ -10,8 +11,9 @@ class Camera():
         self.empty_start=0
         self.last_cx=2000
 
+        self.font = cv2.FONT_HERSHEY_SIMPLEX
+
     def detectFace(self, frame):
-        font = cv2.FONT_HERSHEY_SIMPLEX
 
         height, width, _ = frame.shape
         # Convert into grayscale
@@ -61,7 +63,7 @@ class Camera():
 
             cv2.rectangle(frame, (int(cx)-2, int(cy)-2), (int(cx)+4, int(cy)+4), (0, 255, 0), 4)
             
-            cv2.putText(frame,msg,(10,height-15),font,1,(0,0,255),2)
+            cv2.putText(frame,msg,(10,height-15),self.font,1,(0,0,255),2)
         elif timer()-self.empty_start>2:
             if self.last_cx>width/2:
                 directions[3]=1
