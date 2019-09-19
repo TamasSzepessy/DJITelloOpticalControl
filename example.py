@@ -8,8 +8,7 @@ import queue
 import threading
 from collections import deque
 from plotting import Navigator
-from face_detect import Camera
-from calibration import Calib
+from cam_class import Camera
 from timeit import default_timer as timer
 
 # Speed of the drone
@@ -58,7 +57,6 @@ class FrontEnd(object):
         self.calibrate = False
 
         self.cam = Camera()
-        self.cal = Calib()
 
         # create update timer
         pygame.time.set_timer(USEREVENT + 1, 50)
@@ -96,7 +94,7 @@ class FrontEnd(object):
                 img, directions = self.cam.detectFace(img)
 
             if self.calibrate:
-                img = self.cal.calibrator(img)
+                img = self.cam.calibrator(img)
                 
 
             if not self.data_queue.empty():
