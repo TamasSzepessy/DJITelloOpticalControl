@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 from timeit import default_timer as timer
 import time
+from collections import deque
 
 class Camera():
     def __init__(self):
@@ -36,7 +37,8 @@ class Camera():
         self.not_loaded=True
 
         # for aruco markers
-        self.markerEdge=0.0910 # ArUco marker edge length in meters
+        self.markerEdge=0.00273 # ArUco marker edge length in meters
+        self.seenMarkers=Markers()
 
     def detectFace(self, frame):
 
@@ -168,11 +170,13 @@ class Camera():
         frame = frame[y:y+h, x:x+w]
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_7X7_100)
+        aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_50)
         parameters = cv2.aruco.DetectorParameters_create()
 
         # Detecting markers: get corners and IDs
         corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+
+        id_list=[]
 
         if np.all(ids != None):
             ### IDs found
@@ -182,45 +186,89 @@ class Camera():
             # array of [x, y, z] coordinates of the markers
             transl=tvec.reshape(len(tvec),3)
 
-            # Error map: List to store z coordinates
-            markers_z_list = []
-
             for i in range(0, ids.size):
                 cv2.aruco.drawAxis(frame, self.mtx, self.dist, rvec[i], tvec[i], 0.1)  # Draw axis
                 
                 # Z component of tvec to string
                 strg = str(ids[i][0]) + ' z=' + str(round(transl[i][2],3))
 
-                # Store z coordinates for error map
-                markers_z_list.append(str(round(transl[i][2],3)))
+                id_list.append(ids[i][0])
+                self.seenMarkers.appendMarker(ids[i][0],tvec[i],rvec[i])
 
                 # Writing text to 4th corner
                 cv2.putText(frame, strg, (int(corners[i][0][2][0]),int(corners[i][0][2][1])), self.font, 0.5, (255,0,0),1,cv2.LINE_AA)
 
+            self.seenMarkers.writePos(id_list, tvec, rvec)
             # Draw square around the markers
             cv2.aruco.drawDetectedMarkers(frame, corners)
-
-            # Draw direction arrow for the first marker found
-            # (ideally only 1 marker is seen while testing this)
-            radius = 0.05
-            x = transl[0][0]
-            xstr = str(round(x,3))
-            if x < -radius :
-                arrow = "-->"
-            elif x > radius :
-                arrow = "<--"
-            else:
-                arrow = "OK"
-            
-            cv2.putText(frame, arrow + "  x=" + xstr, (0,64), self.font, 1, (0,255,0),2,cv2.LINE_AA)
-
         else:
             ### No IDs found
             cv2.putText(frame, "No Ids", (0,64), self.font, 1, (0,0,255),2,cv2.LINE_AA)
 
+        self.seenMarkers.lostMarker(id_list)        
+        self.seenMarkers.delMarker()
+
         return frame
 
-        
+class Markers():
+    def __init__(self):
+        self.ids=[]
+        self.tvec_o=[]
+        self.rvec_o=[]
+        self.marker_end=[]
+        self.marker_terminating=[]
+
+    def appendMarker(self, m_id, tvec, rvec):
+        if m_id not in self.ids:
+            self.ids.append(m_id)
+            self.tvec_o.append(tvec)
+            self.rvec_o.append(rvec)
+            self.marker_end.append(0)
+            self.marker_terminating.append(False)
+
+    def lostMarker(self, seenMarkerList):
+        for i in range(len(self.ids)):
+            if self.ids[i] not in seenMarkerList and not self.marker_terminating[i]:
+                #print("terminator")
+                self.marker_end[i]=timer()
+                self.marker_terminating[i]=True
+            elif self.ids[i] in seenMarkerList and self.marker_terminating[i]:
+                #print("ide is belépett")
+                self.marker_terminating[i]=False
+
+    def delMarker(self):
+        toDelete=[]
+        for i in range(len(self.ids)):
+            if self.marker_terminating[i] and timer()-self.marker_end[i]>0.5:
+                toDelete.append(i)
+
+        toDelete.sort(reverse=True)
+
+        for i in range(len(toDelete)):
+            ind=toDelete[i]
+            #print(str(ind)+" deleted")
+            self.ids.pop(ind)
+            self.tvec_o.pop(ind)
+            self.rvec_o.pop(ind)
+            self.marker_end.pop(ind)
+            self.marker_terminating.pop(ind)
+                    
+
+    def writePos(self, id_list, tvecs, rvecs):
+        length=len(id_list)
+        dtv=np.zeros(3)
+        drv=np.zeros(3)
+        for i in range(length):
+            ind = self.ids.index(id_list[i])
+            dtv=dtv+(tvecs[i]-self.tvec_o[ind])
+            drv=drv+(rvecs[i]-self.rvec_o[ind])
+
+        dtv=dtv/length
+        drv=drv/length
+        if length==2:
+            print("átlagol")
+        print(str(dtv)+"; "+str(drv))
+
 
 cap = cv2.VideoCapture(0)
 
