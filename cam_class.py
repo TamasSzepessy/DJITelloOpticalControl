@@ -37,7 +37,7 @@ class Camera():
         self.not_loaded=True
 
         # for aruco markers
-        self.markerEdge=0.00273 # ArUco marker edge length in meters
+        self.markerEdge=0.0957 # ArUco marker edge length in meters
         self.seenMarkers=Markers()
 
     def detectFace(self, frame):
@@ -151,10 +151,10 @@ class Camera():
 
         return frame
 
-    def aruco(self, frame):
+    def aruco(self, frame, ImageGet, CoordGet, CoordReset):
         # Get the calibrated camera matrices
         if self.not_loaded:
-            with np.load('camcalib.npz') as X:
+            with np.load('camcalib_drone.npz') as X:
                 self.mtx = X['mtx']
                 self.dist = X['dist']
             self.not_loaded=False
@@ -168,47 +168,58 @@ class Camera():
         # Crop image
         x,y,w,h = roi
         frame = frame[y:y+h, x:x+w]
+        origFrame=np.copy(frame)
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_50)
+        aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_7X7_100)
         parameters = cv2.aruco.DetectorParameters_create()
 
         # Detecting markers: get corners and IDs
-        corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+        corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
 
         id_list=[]
+
+        if CoordReset:
+            print("coords reset")
+            self.seenMarkers.nullCoords()        
 
         if np.all(ids != None):
             ### IDs found
             # Pose estimation with marker edge length
             rvec, tvec, _ = cv2.aruco.estimatePoseSingleMarkers(corners, self.markerEdge, self.mtx, self.dist)
             
-            # array of [x, y, z] coordinates of the markers
-            transl=tvec.reshape(len(tvec),3)
+            # # array of [x, y, z] coordinates of the markers
+            # transl=tvec.reshape(len(tvec),3)
 
             for i in range(0, ids.size):
                 cv2.aruco.drawAxis(frame, self.mtx, self.dist, rvec[i], tvec[i], 0.1)  # Draw axis
                 
-                # Z component of tvec to string
-                strg = str(ids[i][0]) + ' z=' + str(round(transl[i][2],3))
+                # # Z component of tvec to string
+                # strg = str(ids[i][0]) + ' z=' + str(round(transl[i][2],3))
 
                 id_list.append(ids[i][0])
                 self.seenMarkers.appendMarker(ids[i][0],tvec[i],rvec[i])
 
                 # Writing text to 4th corner
-                cv2.putText(frame, strg, (int(corners[i][0][2][0]),int(corners[i][0][2][1])), self.font, 0.5, (255,0,0),1,cv2.LINE_AA)
+                #cv2.putText(frame, strg, (int(corners[i][0][2][0]),int(corners[i][0][2][1])), self.font, 0.5, (255,0,0),1,cv2.LINE_AA)
 
-            self.seenMarkers.writePos(id_list, tvec, rvec)
+            #self.seenMarkers.writePos(id_list, tvec, rvec, ImageGet, origFrame)
+            self.seenMarkers.getMov(id_list, tvec, rvec, CoordGet)
             # Draw square around the markers
             cv2.aruco.drawDetectedMarkers(frame, corners)
         else:
+            self.seenMarkers.getMov(id_list, np.zeros((1,3)), np.zeros((1,3)), CoordGet)
+            #self.seenMarkers.writePos(id_list, np.zeros((1,3)), np.zeros((1,3)), ImageGet, origFrame)
             ### No IDs found
             cv2.putText(frame, "No Ids", (0,64), self.font, 1, (0,0,255),2,cv2.LINE_AA)
 
-        self.seenMarkers.lostMarker(id_list)        
-        self.seenMarkers.delMarker()
+        
+        #self.seenMarkers.lostMarker(id_list)    
+        #self.seenMarkers.delMarker()
 
         return frame
+
+
 
 class Markers():
     def __init__(self):
@@ -217,6 +228,9 @@ class Markers():
         self.rvec_o=[]
         self.marker_end=[]
         self.marker_terminating=[]
+
+        self.iterateImgGet=31
+        self.OpenedFile=False
 
     def appendMarker(self, m_id, tvec, rvec):
         if m_id not in self.ids:
@@ -252,44 +266,127 @@ class Markers():
             self.rvec_o.pop(ind)
             self.marker_end.pop(ind)
             self.marker_terminating.pop(ind)
-                    
 
-    def writePos(self, id_list, tvecs, rvecs):
+    def nullCoords(self):
+        self.ids=[]
+        self.tvec_o=[]
+        self.rvec_o=[]
+        self.marker_end=[]
+        self.marker_terminating=[]     
+
+    def writePos(self, id_list, tvecs, rvecs, ImageGet, origFrame):
+        dtv, drv=self.dCoords(id_list,tvecs,rvecs)
+        # with open("results/marker_coords.csv", "a") as marker_coords:
+        #         dtv=np.round(dtv,4)
+        #         drv=np.round(drv,4)
+        #         coords_string=str(-dtv[0][0])+";"+str(-dtv[0][2])+";"+str(dtv[0][1])+";"+str(-drv[0][0])+";"+str(-drv[0][1])+";"+str(-drv[0][2])+";"
+        #         marker_coords.write(str(length)+";"+coords_string+"\n")
+
+        if ImageGet:
+            self.iterateImgGet=0
+
+        if self.iterateImgGet<30:
+            if self.iterateImgGet==0:
+                self.start=timer()
+                self.t=[0]
+                self.tvec_all=dtv
+                self.rvec_all=drv
+            else:
+                self.t=np.append(self.t,[timer()-self.start],axis=0)
+                self.tvec_all=np.append(self.tvec_all,dtv,axis=0)
+                self.rvec_all=np.append(self.rvec_all,drv,axis=0)
+
+            cv2.imwrite("results/img_"+str(self.iterateImgGet)+".jpg", origFrame)
+
+            self.iterateImgGet=self.iterateImgGet+1
+
+        if self.iterateImgGet==30:
+            timestr = time.strftime("%Y%m%d_%H%M%S")
+            np.savez("results/movement"+timestr, t=self.t, tvecs=self.tvec_all, rvecs=self.rvec_all)
+            # print("saved")
+            # print(self.t)
+            # print(np.round(self.tvec_all,4))
+            # print(np.round(self.rvec_all,4))
+            self.iterateImgGet=self.iterateImgGet+1
+
+    def dCoords(self, id_list, tvecs, rvecs):
         length=len(id_list)
-        dtv=np.zeros(3)
-        drv=np.zeros(3)
+        dtv=np.zeros((1,3))
+        drv=np.zeros((1,3))
         for i in range(length):
             ind = self.ids.index(id_list[i])
             dtv=dtv+(tvecs[i]-self.tvec_o[ind])
             drv=drv+(rvecs[i]-self.rvec_o[ind])
+        if length>0:
+            dtv=dtv/length
+            drv=drv/length
 
-        dtv=dtv/length
-        drv=drv/length
-        if length==2:
-            print("átlagol")
-        print(str(dtv)+"; "+str(drv))
+        return dtv, drv
+
+    def getMov(self, id_list, tvecs, rvecs, CoordGet):
+        if CoordGet and not self.OpenedFile:
+            dtv, drv=self.dCoords(id_list,tvecs,rvecs)
+            self.start=timer()
+            self.t=[0]
+            self.tvec_all=dtv
+            self.rvec_all=drv
+            self.OpenedFile=True
+        elif CoordGet and self.OpenedFile:
+            dtv, drv=self.dCoords(id_list,tvecs,rvecs)
+            self.t=np.append(self.t,[timer()-self.start],axis=0)
+            self.tvec_all=np.append(self.tvec_all,dtv,axis=0)
+            self.rvec_all=np.append(self.rvec_all,drv,axis=0)
+        elif not CoordGet and self.OpenedFile:
+            timestr = time.strftime("%Y%m%d_%H%M%S")
+            np.savez("results/movement_"+timestr, t=self.t, tvecs=self.tvec_all, rvecs=self.rvec_all)
+            self.OpenedFile=False
+            print("saved")
 
 
-cap = cv2.VideoCapture(0)
 
-cam = Camera()
 
-while True:
-    ret, frame = cap.read()
-    #cuFrame=cv2.cuda_GpuMat(frame)
+# cap = cv2.VideoCapture(0)
 
-    #frame, directions = cam.detectFace(frame)
-    #print(directions)
+# cam = Camera()
+# getImages=False
+# getCoords=False
+# resetCoords=False
 
-    frame = cam.aruco(frame)
+# while True:
+#     ret, frame = cap.read()
+#     #cuFrame=cv2.cuda_GpuMat(frame)
+
+#     #frame, directions = cam.detectFace(frame)
+#     #print(directions)
+
+#     frame = cam.aruco(frame, getImages, getCoords, resetCoords)
     
-    #frame=cuFrame.download()
-    cv2.imshow('img', frame)
+#     #frame=cuFrame.download()
+#     cv2.imshow('img', frame)
 
-    c = cv2.waitKey(1)
+#     c = cv2.waitKey(1)
 
-    if c == 27:
-        break
+#     resetCoords=False
 
-cap.release()
-cv2.destroyAllWindows()
+#     if c == 27:
+#         break
+#     if c == ord("g") or c == ord("G"):
+#         getImages = True
+#         resetCoords = True
+#         print("getim")
+#         continue
+#     if c == ord("c") or c == ord("C"):
+#         if getCoords:
+#             getCoords=False
+#         else:
+#             getCoords = True
+#             resetCoords = True
+#             print("getco")
+#         continue
+#     if c == ord("d") or c == ord("D"):
+#         resetCoords = True
+#         continue
+
+
+# cap.release()
+# cv2.destroyAllWindows()

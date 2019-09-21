@@ -10,13 +10,13 @@ def make_markers():
     aruco_dict = aruco.Dictionary_get(aruco.DICT_7X7_100)
 
     fig = plt.figure()
-    nx = 10
-    ny = 5
+    nx = 2
+    ny = 1
     for i in range(1, nx*ny+1):
         ax = fig.add_subplot(ny,nx, i)
-        img = aruco.drawMarker(aruco_dict,i, 600)
+        img = aruco.drawMarker(aruco_dict,i+2, 600)
         plt.imshow(img, cmap = mpl.cm.gray, interpolation = "nearest")
-        cv.imwrite("markers/img_"+str(i)+".jpg", img)
+        #cv.imwrite("markers/img_"+str(i)+".jpg", img)
         ax.axis("off")
     plt.savefig("markers/ArUco_Markers.pdf")
     plt.show()

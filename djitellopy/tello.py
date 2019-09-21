@@ -101,12 +101,12 @@ class Tello:
 
         return self.cap
 
-    def get_data_read(self):
-        """Get the BackgroundDataRead object from the drone.
-        """
-        if self.background_data_read is None:
-            self.background_data_read = BackgroundDataRead(self, self.data_queue, self.quit_event).start()
-        return self.background_data_read
+    # def get_data_read(self):
+    #     """Get the BackgroundDataRead object from the drone.
+    #     """
+    #     if self.background_data_read is None:
+    #         self.background_data_read = BackgroundDataRead(self, self.data_queue, self.quit_event).start()
+    #     return self.background_data_read
 
     def get_frame_read(self):
         """Get the BackgroundFrameRead object from the camera drone. Then, you just need to call
@@ -742,10 +742,10 @@ class Tello:
         if self.cap is not None:
             self.cap.release()
 
-class BackgroundDataRead:
-    """
-    This class reads flight data and battery data in the background.
-    """
+"""class BackgroundDataRead:
+    
+    #This class reads flight data and battery data in the background.
+
 
     def __init__(self, tello, data_queue, quit_event):
         self.tello = tello
@@ -793,6 +793,7 @@ class BackgroundDataRead:
                 #     self.bat=int(bat_temp)  
                             
                 self.data_queue.put((self.acc,self.att))
+"""
 
 
 class BackgroundFrameRead:

@@ -55,6 +55,8 @@ class FrontEnd(object):
         self.send_navigator = False
         self.face_follow = False
         self.calibrate = False
+        self.getPoints = False
+        self.resetPoints = False
 
         self.cam = Camera()
 
@@ -82,8 +84,8 @@ class FrontEnd(object):
             return
 
         frame_read = self.tello.get_frame_read()
-        self.tello.get_data_read()
-        queue_diff = timer()
+        # self.tello.get_data_read()
+        # queue_diff = timer()
         directions = np.zeros(4)
 
         should_stop = False
@@ -95,15 +97,18 @@ class FrontEnd(object):
 
             if self.calibrate:
                 img = self.cam.calibrator(img)
-                
 
-            if not self.data_queue.empty():
-                dt=timer()-queue_diff
-                q=self.data_queue.get()
-                # acc=q[0]*9.81
-                # att=q[1]
+            img=self.cam.aruco(img,False,self.getPoints,self.resetPoints)
+            if self.resetPoints:
+                self.resetPoints=False
+
+            # if not self.data_queue.empty():
+            #     dt=timer()-queue_diff
+            #     q=self.data_queue.get()
+            #     # acc=q[0]*9.81
+            #     # att=q[1]
                 
-                queue_diff = timer()
+            #     queue_diff = timer()
 
             for event in pygame.event.get():
                 if event.type == USEREVENT + 1:
@@ -205,6 +210,13 @@ class FrontEnd(object):
             self.calibrate = True
         elif key == pygame.K_l:
             self.calibrate = False
+        elif key == pygame.K_c:
+            if self.getPoints:
+                self.getPoints=False
+            else:
+                self.getPoints = True
+                self.resetPoints = True
+            
 
     def update(self, dirs):
         """ Update routine. Send velocities to Tello."""
