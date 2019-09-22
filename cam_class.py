@@ -3,6 +3,7 @@ import numpy as np
 from timeit import default_timer as timer
 import time
 from collections import deque
+from plot3d import Plotting
 
 class Camera():
     def __init__(self):
@@ -232,6 +233,8 @@ class Markers():
         self.iterateImgGet=31
         self.OpenedFile=False
 
+        self.plotter = Plotting()
+
     def appendMarker(self, m_id, tvec, rvec):
         if m_id not in self.ids:
             self.ids.append(m_id)
@@ -341,8 +344,7 @@ class Markers():
             np.savez("results/movement_"+timestr, t=self.t, tvecs=self.tvec_all, rvecs=self.rvec_all)
             self.OpenedFile=False
             print("saved")
-
-
+            self.plotter.plotout("results/movement_"+timestr)
 
 
 # cap = cv2.VideoCapture(0)
