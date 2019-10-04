@@ -33,9 +33,7 @@ class FrontEnd(object):
 
         # Creat pygame window
         pygame.display.set_caption("Tello video stream")
-        self.width = 640
-        self.height = 480
-        self.screen = pygame.display.set_mode([self.width, self.height])
+        self.screen = pygame.display.set_mode([640, 480])
 
         # create queue and event for data communications
         self.data_queue=queue.Queue()
@@ -51,7 +49,6 @@ class FrontEnd(object):
         self.up_down_velocity = 0
         self.yaw_velocity = 0
         self.speed = 10
-        self.battery = 0
 
         self.send_rc_control = False
         self.send_navigator = False
@@ -104,6 +101,14 @@ class FrontEnd(object):
             if self.resetPoints:
                 self.resetPoints=False
 
+            # if not self.data_queue.empty():
+            #     dt=timer()-queue_diff
+            #     q=self.data_queue.get()
+            #     # acc=q[0]*9.81
+            #     # att=q[1]
+                
+            #     queue_diff = timer()
+
             for event in pygame.event.get():
                 if event.type == USEREVENT + 1:
                     self.update(directions)
@@ -123,17 +128,20 @@ class FrontEnd(object):
                 frame_read.stop()
                 break
 
-            if not self.data_queue.empty():
-                q=self.data_queue.get()
-                self.battery=q[3]
+            # cv2.imshow("frame",img)
+            # print("showing")
 
-            # write battery percentage
-            img = self.cam.writeBattery(img, self.battery)   
-            
-            if (img.shape[1] != self.width) or (img.shape[0] != self.height):
-                self.width = img.shape[1]
-                self.height = img.shape[0]
-                self.screen=pygame.display.set_mode((self.width, self.height))
+            # c=cv2.waitKey(1)
+
+            # if c==27:
+            #     should_stop = True
+            #     break
+            # elif c==116:
+            #     self.tello.takeoff()
+            #     self.send_rc_control = True
+            # elif c==108:
+            #     self.tello.land()
+            #     self.send_rc_control = False
             
             self.screen.fill([0, 0, 0])
             frame = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -189,20 +197,40 @@ class FrontEnd(object):
         elif key == pygame.K_l:  # land
             self.tello.land()
             self.send_rc_control = False
-        elif key == pygame.K_k: # camera calibration
+        # elif key == pygame.K_n:
+        #     self.send_navigator = True
+        # elif key == pygame.K_m:
+        #     self.send_navigator = False
+        # elif key == pygame.K_f:
+        #     self.face_follow = True
+        # elif key == pygame.K_g:
+        #     self.face_follow = False
+        elif key == pygame.K_k:
             self.calibrate = True
         elif key == pygame.K_l:
             self.calibrate = False
-        elif key == pygame.K_c: # get aruco marker points
+        elif key == pygame.K_c:
             if self.getPoints:
                 self.getPoints=False
             else:
                 self.getPoints = True
-                self.resetPoints = True            
+                self.resetPoints = True
+            
 
     def update(self, dirs):
         """ Update routine. Send velocities to Tello."""
         if self.send_rc_control:
+            if self.send_navigator:
+                navi=Navigator()
+                vx,vy,vz=navi.velos()
+                for i in range(len(vx)):
+                    self.tello.send_rc_control(int(20*vx[i]), int(20*vy[i]), int(200*vz[i]), 0)
+                    time.sleep(0.5)
+                self.send_navigator=False
+            elif self.face_follow:
+                dirs=dirs*20
+                self.tello.send_rc_control(int(dirs[0]), int(dirs[1]), int(dirs[2]), int(dirs[3]*2))
+            else:
                 self.tello.send_rc_control(self.left_right_velocity, self.for_back_velocity, self.up_down_velocity,
                                            self.yaw_velocity)
             

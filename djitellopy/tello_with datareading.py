@@ -39,16 +39,10 @@ class Tello:
     VS_UDP_IP = '0.0.0.0'
     VS_UDP_PORT = 11111
 
-    # State stream, server socket
-    SS_UDP_IP = '0.0.0.0'
-    SS_UDP_PORT = 8890
-
     # VideoCapture object
     cap = None
-    background_frame_read = None
-
-    # DroneState object
     background_data_read = None
+    background_frame_read = None
 
     stream_on = False
 
@@ -64,7 +58,6 @@ class Tello:
 
         self.address = (host, port)
         self.response = None
-        self.state = None
         self.stream_on = False
         self.enable_exceptions = enable_exceptions
         self.retry_count = retry_count
@@ -76,20 +69,10 @@ class Tello:
                                             socket.SOCK_DGRAM)  # UDP
             self.clientSocket.bind(('', self.UDP_PORT))  # For UDP response (receiving data)
 
-        self.stateSocket = socket.socket(socket.AF_INET,  # Internet
-                                        socket.SOCK_DGRAM)  # UDP
-        self.stateSocket.bind((self.SS_UDP_IP, self.SS_UDP_PORT))
-        self.stateSocket.settimeout(1)
-
         # Run tello udp receiver on background
         thread = threading.Thread(target=self.run_udp_receiver, args=())
         thread.daemon = True
         thread.start()
-
-        # Run tello state reciever in the background
-        thread_st = threading.Thread(target=self.get_read_state, args=())
-        thread_st.daemon = True
-        thread_st.start()
 
     def run_udp_receiver(self):
         """Setup drone UDP receiver. This method listens for responses of Tello. Must be run from a background thread
@@ -97,47 +80,6 @@ class Tello:
         while True:
             try:
                 self.response, _ = self.clientSocket.recvfrom(1024)  # buffer size is 1024 bytes
-            except Exception as e:
-                self.LOGGER.error(e)
-                break
-
-    def get_udp_state_address(self):
-        return 'udp://@' + self.SS_UDP_IP + ':' + str(self.SS_UDP_PORT)
-
-    def get_read_state(self):
-        """Get the states from the drone.
-            (pitch:%d;roll:%d;yaw:%d;vgx:%d;vgy%d;vgz:%d;templ:%d;temph:%d;tof:%d;h:%d;bat:%d;
-            baro:%.2f; time:%d;agx:%.2f;agy:%.2f;agz:%.2f;\r\n)
-            - pitch: Attitude pitch, degree
-            - roll: Attitude roll, degree
-            - yaw: Attitude yaw, degree
-            - vgx: Speed x,
-            - vgy: Speed y,
-            - vgz: Speed z,
-            - templ: Lowest temperature, celcius degree
-            - temph: Highest temperature, celcius degree
-            - tof: TOF distance, cm
-            - h: Height, cm
-            - bat: Current battery percentage, %
-            - baro: Barometer measurement, cm
-            - time: Motors on time,
-            - agx: Acceleration x,
-            - agy: Acceleration y,
-            - agz: Acceleration z,
-        
-        Returns: string
-        """
-        while True:
-            time.sleep(0.01)
-            try:
-                state_temp, _ = self.stateSocket.recvfrom(1024)  # buffer size is 1024 bytes
-                self.state = state_temp.decode('ASCII').split(";")
-                pitch = int(self.state[0][self.state[0].index(":")+1:])
-                roll = int(self.state[1][self.state[1].index(":")+1:])
-                yaw = int(self.state[2][self.state[2].index(":")+1:])
-                bat = int(self.state[10][self.state[10].index(":")+1:])
-                state = np.array([pitch, roll, yaw, bat])
-                self.data_queue.put(state)
             except Exception as e:
                 self.LOGGER.error(e)
                 break
@@ -158,6 +100,13 @@ class Tello:
             self.cap.open(self.get_udp_video_address())
 
         return self.cap
+
+    # def get_data_read(self):
+    #     """Get the BackgroundDataRead object from the drone.
+    #     """
+    #     if self.background_data_read is None:
+    #         self.background_data_read = BackgroundDataRead(self, self.data_queue, self.quit_event).start()
+    #     return self.background_data_read
 
     def get_frame_read(self):
         """Get the BackgroundFrameRead object from the camera drone. Then, you just need to call
@@ -492,6 +441,17 @@ class Tello:
         return self.move("back", x)
 
     @accepts(x=int)
+    def move_up(self, x):
+        """Tello fly up with distance x cm.
+        Arguments:
+            x: 20-500
+
+        Returns:
+            bool: True for successful, False for unsuccessful
+        """
+        return self.move("up", x)
+
+    @accepts(x=int)
     def rotate_clockwise(self, x):
         """Tello rotate x degree clockwise.
         Arguments:
@@ -781,6 +741,60 @@ class Tello:
             self.background_frame_read.stop()
         if self.cap is not None:
             self.cap.release()
+
+"""class BackgroundDataRead:
+    
+    #This class reads flight data and battery data in the background.
+
+
+    def __init__(self, tello, data_queue, quit_event):
+        self.tello = tello
+        self.data_queue = data_queue
+        self.quit_event = quit_event
+
+        self.acc = np.zeros(3)
+        self.att = np.zeros(3)
+        #self.bat = 100
+
+        self.TIME_BTW_DATA_QUERY_COMMANDS=0.1
+        self.last_data_query_sent=0
+    
+    def start(self):
+        Thread(target=self.update_data, args=()).start()
+        return self
+
+    def update_data(self):
+        while not self.quit_event.isSet():
+            if int(time.time() * 1000) - self.last_data_query_sent < self.TIME_BTW_DATA_QUERY_COMMANDS:
+                pass
+            else:
+                self.last_data_query_sent = int(time.time() * 1000)            
+        
+                acc_temp=self.tello.send_read_command_wo_log("acceleration?")
+                try:
+                    if isinstance(acc_temp, str) and acc_temp!=False:
+                        acc_ar=acc_temp.split(';')
+                        if acc_ar[0].isnumeric:
+                            self.acc=(float(acc_ar[0][4:]),float(acc_ar[1][4:]),float(acc_ar[2][4:])) # x, y, z
+                except ValueError:
+                    print("acc error")
+                
+                att_temp=self.tello.send_read_command_wo_log("attitude?")
+                try:
+                    if isinstance(acc_temp, str) and att_temp!=False:
+                        att_ar=att_temp.split(';')
+                        if att_ar[0].isnumeric:
+                            self.att=(float(att_ar[0][6:]),float(att_ar[1][5:]),float(att_ar[2][4:])) # pitch, roll, yaw
+                except ValueError:
+                    print("att error")
+
+                #self.bat=self.tello.send_read_command_wo_log("battery?")
+                # if bat_temp
+                #     self.bat=int(bat_temp)  
+                            
+                self.data_queue.put((self.acc,self.att))
+"""
+
 
 class BackgroundFrameRead:
     """

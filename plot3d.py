@@ -4,6 +4,7 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from scipy import interpolate
 import math
+import cv2
 
 class Plotting():
 
@@ -25,6 +26,11 @@ class Plotting():
         xp=-tvec[:,0]
         yp=-tvec[:,2]
         zp=tvec[:,1]
+        # xp2=np.copy(xp)
+        # for i in range(len(rvec)):
+        #     xp2[i]=xp[i]*math.sin(rvec[i,2])+yp[i]*math.cos(rvec[i,2])
+        #     yp[i]=xp[i]*math.cos(rvec[i,2])-yp[i]*math.sin(rvec[i,2])
+        #     xp[i]=xp2[i]
         okay = np.where(np.abs(np.diff(xp)) + np.abs(np.diff(yp)) + np.abs(np.diff(zp)) > 0)
         xp = np.r_[xp[okay], xp[-1]]
         yp = np.r_[yp[okay], yp[-1]]
@@ -54,18 +60,19 @@ class Plotting():
         # ax.set_xlim([minval,maxval])
         # ax.set_ylim([minval,maxval])
         # ax.set_zlim([minval,maxval])
-        ax.set_xlabel("X")
-        ax.set_ylabel("Y")
-        ax.set_zlabel("Z")
+        ax.set_xlabel("X [m]")
+        ax.set_ylabel("Y [m]")
+        ax.set_zlabel("Z [m]")
 
         ax.plot(xp, yp, zp, 'r*')
-        ax.plot(x_knots, y_knots, z_knots, 'go')
+        #ax.plot(x_knots, y_knots, z_knots, 'go')
         ax.plot(x_fine, y_fine, z_fine, 'g')
         ax.plot([minval,maxval],[0,0],[0,0],'k',linewidth=0.5)
         ax.plot([0,0],[minval,maxval],[0,0],'k',linewidth=0.5)
         ax.plot([0,0],[0,0],[minval,maxval],'k',linewidth=0.5)
 
         plt.show()
+        plt.pause(0.01)
 
-plotter = Plotting()
-plotter.plotout('results/movement_20190921_161439.npz')
+# plotter = Plotting()
+# plotter.plotout('results/movement_20190921_164308.npz')
