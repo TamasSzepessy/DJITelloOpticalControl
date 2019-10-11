@@ -5,6 +5,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy import interpolate
 import math
 import cv2
+import transformations as tf
 
 class Plotting():
 
@@ -21,15 +22,18 @@ class Plotting():
             tvec = X['tvecs']
             rvec = X['rvecs']
 
+        # print(rvec*180/math.pi)
+
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
         xp=-tvec[:,0]
-        yp=-tvec[:,2]
-        zp=tvec[:,1]
+        yp=tvec[:,2]
+        zp=-tvec[:,1]
         # xp2=np.copy(xp)
         # for i in range(len(rvec)):
-        #     xp2[i]=xp[i]*math.sin(rvec[i,2])+yp[i]*math.cos(rvec[i,2])
-        #     yp[i]=xp[i]*math.cos(rvec[i,2])-yp[i]*math.sin(rvec[i,2])
+        #     rvec[i]=tf.rotationVectorToEulerAngles(rvec[i])
+        #     xp2[i]=xp[i]*math.cos(rvec[i,1])-yp[i]*math.sin(rvec[i,1])
+        #     yp[i]=yp[i]*math.cos(rvec[i,1])+xp[i]*math.sin(rvec[i,1])
         #     xp[i]=xp2[i]
         okay = np.where(np.abs(np.diff(xp)) + np.abs(np.diff(yp)) + np.abs(np.diff(zp)) > 0)
         xp = np.r_[xp[okay], xp[-1]]
@@ -52,8 +56,8 @@ class Plotting():
         maxval=max((max(xp),max(yp),max(zp)))
         minval=min((min(xp),min(yp),min(zp)))
 
-        tck, _ = interpolate.splprep([xp, yp, zp], s=0.01)
-        x_knots, y_knots, z_knots = interpolate.splev(tck[0], tck)
+        tck, _ = interpolate.splprep([xp, yp, zp], s=1)
+        # x_knots, y_knots, z_knots = interpolate.splev(tck[0], tck)
         u_fine = np.linspace(0,1,tvec.shape[0])
         x_fine, y_fine, z_fine = interpolate.splev(u_fine, tck)
 
@@ -65,7 +69,7 @@ class Plotting():
         ax.set_zlabel("Z [m]")
 
         ax.plot(xp, yp, zp, 'r*')
-        #ax.plot(x_knots, y_knots, z_knots, 'go')
+        # ax.plot(x_knots, y_knots, z_knots, 'go')
         ax.plot(x_fine, y_fine, z_fine, 'g')
         ax.plot([minval,maxval],[0,0],[0,0],'k',linewidth=0.5)
         ax.plot([0,0],[minval,maxval],[0,0],'k',linewidth=0.5)
@@ -75,4 +79,4 @@ class Plotting():
         plt.pause(0.01)
 
 # plotter = Plotting()
-# plotter.plotout('results/movement_20190921_164308.npz')
+# plotter.plotout('results/movement_20191006_111620.npz')

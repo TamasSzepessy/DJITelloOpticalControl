@@ -5,15 +5,11 @@ import time
 from collections import deque
 from plot3d import Plotting
 from marker_class import Markers
+import transformations as tf
+import math
 
 class Camera():
     def __init__(self):
-        # Load the cascade
-        self.face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-        # For timer
-        self.empty_start=0
-        self.last_cx=2000
-
         self.font = cv2.FONT_HERSHEY_SIMPLEX
 
         # for calibration
@@ -41,65 +37,6 @@ class Camera():
         # for aruco markers
         self.markerEdge=0.0957 # ArUco marker edge length in meters
         self.seenMarkers=Markers()
-
-    def detectFace(self, frame):
-
-        height, width, _ = frame.shape
-        # Convert into grayscale
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        # Detect faces
-        faces = self.face_cascade.detectMultiScale(gray, 1.1, 10)
-        # Directions vector for drone control
-        directions = np.zeros(4)
-        # Draw rectangle around the faces
-        if len(faces)>0:          
-            self.empty_start=timer()
-            cx=0
-            cy=0
-            msg=""
-            for (x, y, w, h) in faces:
-                cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
-                cx=cx+x+w/2
-                cy=cy+y+h/2
-
-            cx=cx/len(faces)
-            cy=cy/len(faces)
-
-            # right-left
-            if cx > width*0.6:
-                msg=msg+"rgt, "
-                directions[0]=1
-            if cx < width*0.4:
-                msg=msg+"lft, "
-                directions[0]=-1
-            # forward-backward
-            w=faces[0][2]
-            if w>width*0.2:
-                msg=msg+"bck, "
-                directions[1]=-1
-            if w<width*0.15:
-                msg=msg+"fwd, "
-                directions[1]=1
-            # up-down
-            if cy < height*0.25:
-                msg=msg+"up, "
-                directions[2]=1
-            if cy > height*0.45:
-                msg=msg+"dwn"
-                directions[2]=-1
-
-            self.last_cx=cx
-
-            cv2.rectangle(frame, (int(cx)-2, int(cy)-2), (int(cx)+4, int(cy)+4), (0, 255, 0), 4)
-            
-            cv2.putText(frame,msg,(10,height-15),self.font,1,(0,0,255),2)
-        elif timer()-self.empty_start>2:
-            if self.last_cx>width/2:
-                directions[3]=1
-            else:
-                directions[3]=-1
-
-        return frame, directions
 
     def calibrator(self,frame):
         if self.calib==False:
@@ -168,7 +105,7 @@ class Camera():
     def aruco(self, frame, ImageGet, CoordGet, CoordReset):
         # Get the calibrated camera matrices
         if self.not_loaded:
-            with np.load('camcalib_drone.npz') as X:
+            with np.load('camcalib.npz') as X:
                 self.mtx = X['mtx']
                 self.dist = X['dist']
             self.not_loaded=False
@@ -204,6 +141,18 @@ class Camera():
 
             for i in range(0, ids.size):
                 cv2.aruco.drawAxis(frame, self.mtx, self.dist, rvec[i], tvec[i], 0.1)  # Draw axis
+                
+                # correct translational values for rotation
+                R, _ = cv2.Rodrigues(rvec[i])
+                tvec[i]=np.matmul(tvec[i], R)
+                # print(tvec[i])
+                
+                # convert rotation vector to Euler angles
+                # x-y síktól függ a markerhelyzet
+                # függőleges: piros -x (x - pitch), zöld y (z - yaw), kék z (y - roll)
+                # vízszintes: piros x (x - pitch), zöld y (y - roll), kék z (z - yaw)
+                rvec[i] = tf.rotationVectorToEulerAngles(rvec[i])*180/math.pi
+                # print(rvec[i]*180/math.pi)
 
                 id_list.append(ids[i][0])
                 self.seenMarkers.appendMarker(ids[i][0],tvec[i],rvec[i])
@@ -220,48 +169,48 @@ class Camera():
 
 
 
-# cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(0)
 
-# cam = Camera()
-# getImages=False
-# getCoords=False
-# resetCoords=False
+cam = Camera()
+getImages=False
+getCoords=False
+resetCoords=False
 
-# while True:
-#     ret, frame = cap.read()
-#     #cuFrame=cv2.cuda_GpuMat(frame)
+while True:
+    ret, frame = cap.read()
+    #cuFrame=cv2.cuda_GpuMat(frame)
 
-#     #frame, directions = cam.detectFace(frame)
-#     #print(directions)
+    #frame, directions = cam.detectFace(frame)
+    #print(directions)
 
-#     frame = cam.aruco(frame, getImages, getCoords, resetCoords)
+    frame = cam.aruco(frame, getImages, getCoords, resetCoords)
     
-#     #frame=cuFrame.download()
-#     cv2.imshow('img', frame)
+    #frame=cuFrame.download()
+    cv2.imshow('img', frame)
 
-#     c = cv2.waitKey(1)
+    c = cv2.waitKey(1)
 
-#     resetCoords=False
+    resetCoords=False
 
-#     if c == 27:
-#         break
-#     if c == ord("g") or c == ord("G"):
-#         getImages = True
-#         resetCoords = True
-#         print("getim")
-#         continue
-#     if c == ord("c") or c == ord("C"):
-#         if getCoords:
-#             getCoords=False
-#         else:
-#             getCoords = True
-#             resetCoords = True
-#             print("getco")
-#         continue
-#     if c == ord("d") or c == ord("D"):
-#         resetCoords = True
-#         continue
+    if c == 27:
+        break
+    if c == ord("g") or c == ord("G"):
+        getImages = True
+        resetCoords = True
+        print("getim")
+        continue
+    if c == ord("c") or c == ord("C"):
+        if getCoords:
+            getCoords=False
+        else:
+            getCoords = True
+            resetCoords = True
+            print("getco")
+        continue
+    if c == ord("d") or c == ord("D"):
+        resetCoords = True
+        continue
 
 
-# cap.release()
-# cv2.destroyAllWindows()
+cap.release()
+cv2.destroyAllWindows()
