@@ -102,7 +102,7 @@ class Camera():
 
         return frame
 
-    def aruco(self, frame, ImageGet, CoordGet, CoordReset):
+    def aruco(self, frame, CoordGet, CoordReset):
         # Get the calibrated camera matrices
         if self.not_loaded:
             with np.load('camcalib.npz') as X:
@@ -128,11 +128,12 @@ class Camera():
         # Detecting markers: get corners and IDs
         corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
 
+        # List for all currently seen IDs
         id_list=[]
 
         if CoordReset:
             print("coords reset")
-            self.seenMarkers.nullCoords()        
+            self.seenMarkers.nullCoords()
 
         if np.all(ids != None):
             ### IDs found
@@ -143,19 +144,15 @@ class Camera():
                 cv2.aruco.drawAxis(frame, self.mtx, self.dist, rvec[i], tvec[i], 0.1)  # Draw axis
                 
                 # correct translational values for rotation
-                R, _ = cv2.Rodrigues(rvec[i])
-                tvec[i]=np.matmul(tvec[i], R)
-                # print(tvec[i])
+                #print(tf.compensateTranslation(rvec[i],tvec[i],0))
                 
                 # convert rotation vector to Euler angles
-                # x-y síktól függ a markerhelyzet
-                # függőleges: piros -x (x - pitch), zöld y (z - yaw), kék z (y - roll)
-                # vízszintes: piros x (x - pitch), zöld y (y - roll), kék z (z - yaw)
-                rvec[i] = tf.rotationVectorToEulerAngles(rvec[i])*180/math.pi
-                # print(rvec[i]*180/math.pi)
+                #rvec[i] = tf.rotationVectorToEulerAngles(rvec[i])*180/math.pi
+                #print(rvec[i])
 
                 id_list.append(ids[i][0])
-                self.seenMarkers.appendMarker(ids[i][0],tvec[i],rvec[i])
+            
+            self.seenMarkers.appendMarker(id_list, tvec, rvec)
 
             self.seenMarkers.getMov(id_list, tvec, rvec, CoordGet)
             # Draw square around the markers
@@ -183,7 +180,7 @@ while True:
     #frame, directions = cam.detectFace(frame)
     #print(directions)
 
-    frame = cam.aruco(frame, getImages, getCoords, resetCoords)
+    frame = cam.aruco(frame, getCoords, resetCoords)
     
     #frame=cuFrame.download()
     cv2.imshow('img', frame)
@@ -194,11 +191,6 @@ while True:
 
     if c == 27:
         break
-    if c == ord("g") or c == ord("G"):
-        getImages = True
-        resetCoords = True
-        print("getim")
-        continue
     if c == ord("c") or c == ord("C"):
         if getCoords:
             getCoords=False

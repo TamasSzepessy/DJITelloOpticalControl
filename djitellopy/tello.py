@@ -128,7 +128,7 @@ class Tello:
         Returns: string
         """
         while True:
-            time.sleep(0.01)
+            time.sleep(1/25)
             try:
                 state_temp, _ = self.stateSocket.recvfrom(1024)  # buffer size is 1024 bytes
                 self.state = state_temp.decode('ASCII').split(";")

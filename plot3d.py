@@ -21,14 +21,15 @@ class Plotting():
         with np.load(file) as X:
             tvec = X['tvecs']
             rvec = X['rvecs']
+            orientation = X['orientation']
 
         # print(rvec*180/math.pi)
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
-        xp=-tvec[:,0]
-        yp=tvec[:,2]
-        zp=-tvec[:,1]
+        xp=orientation[0][0]*tvec[:,orientation[1][0]]
+        yp=orientation[0][1]*tvec[:,orientation[1][1]]
+        zp=orientation[0][2]*tvec[:,orientation[1][2]]
         # xp2=np.copy(xp)
         # for i in range(len(rvec)):
         #     rvec[i]=tf.rotationVectorToEulerAngles(rvec[i])
@@ -56,10 +57,10 @@ class Plotting():
         maxval=max((max(xp),max(yp),max(zp)))
         minval=min((min(xp),min(yp),min(zp)))
 
-        tck, _ = interpolate.splprep([xp, yp, zp], s=1)
-        # x_knots, y_knots, z_knots = interpolate.splev(tck[0], tck)
-        u_fine = np.linspace(0,1,tvec.shape[0])
-        x_fine, y_fine, z_fine = interpolate.splev(u_fine, tck)
+        # tck, _ = interpolate.splprep([xp, yp, zp], s=1)
+        # # x_knots, y_knots, z_knots = interpolate.splev(tck[0], tck)
+        # u_fine = np.linspace(0,1,tvec.shape[0])
+        # x_fine, y_fine, z_fine = interpolate.splev(u_fine, tck)
 
         # ax.set_xlim([minval,maxval])
         # ax.set_ylim([minval,maxval])
@@ -70,7 +71,7 @@ class Plotting():
 
         ax.plot(xp, yp, zp, 'r*')
         # ax.plot(x_knots, y_knots, z_knots, 'go')
-        ax.plot(x_fine, y_fine, z_fine, 'g')
+        #ax.plot(x_fine, y_fine, z_fine, 'g')
         ax.plot([minval,maxval],[0,0],[0,0],'k',linewidth=0.5)
         ax.plot([0,0],[minval,maxval],[0,0],'k',linewidth=0.5)
         ax.plot([0,0],[0,0],[minval,maxval],'k',linewidth=0.5)
