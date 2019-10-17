@@ -5,7 +5,6 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy import interpolate
 import math
 import cv2
-import transformations as tf
 
 class Plotting():
 
@@ -27,15 +26,13 @@ class Plotting():
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
+        # xp = tvec[:,0]
+        # yp = tvec[:,1]
+        # zp = tvec[:,2]
         xp=orientation[0][0]*tvec[:,orientation[1][0]]
         yp=orientation[0][1]*tvec[:,orientation[1][1]]
         zp=orientation[0][2]*tvec[:,orientation[1][2]]
-        # xp2=np.copy(xp)
-        # for i in range(len(rvec)):
-        #     rvec[i]=tf.rotationVectorToEulerAngles(rvec[i])
-        #     xp2[i]=xp[i]*math.cos(rvec[i,1])-yp[i]*math.sin(rvec[i,1])
-        #     yp[i]=yp[i]*math.cos(rvec[i,1])+xp[i]*math.sin(rvec[i,1])
-        #     xp[i]=xp2[i]
+        
         okay = np.where(np.abs(np.diff(xp)) + np.abs(np.diff(yp)) + np.abs(np.diff(zp)) > 0)
         xp = np.r_[xp[okay], xp[-1]]
         yp = np.r_[yp[okay], yp[-1]]

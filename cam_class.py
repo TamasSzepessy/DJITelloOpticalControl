@@ -142,18 +142,12 @@ class Camera():
 
             for i in range(0, ids.size):
                 cv2.aruco.drawAxis(frame, self.mtx, self.dist, rvec[i], tvec[i], 0.1)  # Draw axis
-                
-                # correct translational values for rotation
-                #print(tf.compensateTranslation(rvec[i],tvec[i],0))
-                
-                # convert rotation vector to Euler angles
-                #rvec[i] = tf.rotationVectorToEulerAngles(rvec[i])*180/math.pi
-                #print(rvec[i])
 
                 id_list.append(ids[i][0])
             
             self.seenMarkers.appendMarker(id_list, tvec, rvec)
 
+            #self.seenMarkers.getCoords(id_list, tvec, rvec)
             self.seenMarkers.getMov(id_list, tvec, rvec, CoordGet)
             # Draw square around the markers
             cv2.aruco.drawDetectedMarkers(frame, corners)
