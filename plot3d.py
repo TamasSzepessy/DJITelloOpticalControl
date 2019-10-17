@@ -54,10 +54,15 @@ class Plotting():
         maxval=max((max(xp),max(yp),max(zp)))
         minval=min((min(xp),min(yp),min(zp)))
 
-        # tck, _ = interpolate.splprep([xp, yp, zp], s=1)
-        # # x_knots, y_knots, z_knots = interpolate.splev(tck[0], tck)
-        # u_fine = np.linspace(0,1,tvec.shape[0])
-        # x_fine, y_fine, z_fine = interpolate.splev(u_fine, tck)
+        try:
+            tck, _ = interpolate.splprep([xp, yp, zp], s=1)
+            # x_knots, y_knots, z_knots = interpolate.splev(tck[0], tck)
+            u_fine = np.linspace(0,1,tvec.shape[0])
+            x_fine, y_fine, z_fine = interpolate.splev(u_fine, tck)
+            # ax.plot(x_knots, y_knots, z_knots, 'go')
+            ax.plot(x_fine, y_fine, z_fine, 'g')
+        except:
+            pass
 
         # ax.set_xlim([minval,maxval])
         # ax.set_ylim([minval,maxval])
@@ -67,8 +72,6 @@ class Plotting():
         ax.set_zlabel("Z [m]")
 
         ax.plot(xp, yp, zp, 'r*')
-        # ax.plot(x_knots, y_knots, z_knots, 'go')
-        #ax.plot(x_fine, y_fine, z_fine, 'g')
         ax.plot([minval,maxval],[0,0],[0,0],'k',linewidth=0.5)
         ax.plot([0,0],[minval,maxval],[0,0],'k',linewidth=0.5)
         ax.plot([0,0],[0,0],[minval,maxval],'k',linewidth=0.5)
