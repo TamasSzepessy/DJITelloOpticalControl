@@ -1,16 +1,17 @@
 import numpy as np
-from plot3d import Plotting
+#from plot3d import Plotting
 from timeit import default_timer as timer
 import time
 import math
 import transformations as tf
 import cv2
+import threading
 
 # limit for averaging
-ALLOW_LIMIT = 30
+ALLOW_LIMIT = 25
 
 class Markers():
-    def __init__(self):
+    def __init__(self, MARKER_SIDE):
         # intiialise arrays
         self.ids = []
         self.tvec_origin = []
@@ -29,8 +30,8 @@ class Markers():
         # for logging
         self.OpenedFile=False
 
-        # plotting
-        self.plotter = Plotting()
+        # # plotting
+        # self.plotter = Plotting(MARKER_SIDE)
 
     # Append marker to the list of stered markers
     def appendMarker(self, seen_id_list, tvec, rvec):
@@ -51,8 +52,8 @@ class Markers():
                 if abs(rvec_Euler[0]) <= 150: # horizontal
                     self.orientation = np.array([[1, 1, -1],[0, 1, 2]])
                 elif abs(rvec_Euler[0]) > 150: # vertical
-                    self.orientation = np.array([[-1, 1, 1],[0, 2, 1]])
-                #print(self.orientation)
+                    self.orientation = np.array([[1, -1, 1],[0, 2, 1]])
+                print(self.orientation)
             elif n_id not in self.ids and len(self.ids) > 0 and len(seen_id_list) >= 2:
                 self.ids.append(n_id)
                 self.tvec_origin.append(np.array([[0, 0, 0]]))
@@ -112,7 +113,7 @@ class Markers():
                 ind = self.ids.index(seen_id_list[i])
                 if self.allow_use[ind] == ALLOW_LIMIT:
                     dtv = dtv + tf.calculatePos(tvecs[i], rvecs[i], self.tvec_origin[ind], self.dRot[ind])
-                    drv = drv + rvecs[i] - self.rvec_origin[ind]
+                    drv = drv + tf.calculateAng(rvecs[i], self.rvec_origin[ind], self.dRot[ind])
                 else:
                     len_diff = len_diff + 1
 
@@ -120,9 +121,18 @@ class Markers():
         if length>0:
             dtv=dtv/length
             drv=drv/length
-        
-        # print(tf.rotationVectorToEulerAngles(drv)*180/math.pi)
-        # time.sleep(0.2)
+
+        # xp = self.orientation[0][0]*dtv[0,self.orientation[1][0]]
+        # yp = self.orientation[0][1]*dtv[0,self.orientation[1][1]]
+        # zp = self.orientation[0][2]*dtv[0,self.orientation[1][2]]
+        # dtv = np.array([[xp, yp, zp]])
+
+        print(tf.rotationVectorToEulerAngles(drv)*180/math.pi)
+        # xp = self.orientation[0][0]*drv[0,self.orientation[1][0]]
+        # yp = self.orientation[0][1]*drv[0,self.orientation[1][1]]
+        # zp = self.orientation[0][2]*drv[0,self.orientation[1][2]]
+        # drv = np.array([[xp, yp, zp]])
+        time.sleep(0.1)
 
         return dtv, drv
     
@@ -152,8 +162,9 @@ class Markers():
             self.rvec_all=np.append(self.rvec_all,drv,axis=0)
         elif not CoordGet and self.OpenedFile:
             timestr = time.strftime("%Y%m%d_%H%M%S")
-            np.savez("results/movement_"+timestr, t=self.t, tvecs=self.tvec_all,
-                        rvecs=self.rvec_all, orientation=self.orientation)
+            np.savez("results/movement_"+timestr, t=self.t, tvecs=self.tvec_all, rvecs=self.rvec_all,
+                     t_origin=np.asarray(self.tvec_origin), r_origin=np.asarray(self.rvec_origin),
+                     orientation=self.orientation)
             self.OpenedFile=False
             print("saved")
-            self.plotter.plotout("results/movement_"+timestr+".npz")
+            #self.plotter.plotout("results/movement_"+timestr+".npz")

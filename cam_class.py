@@ -3,18 +3,28 @@ import numpy as np
 from timeit import default_timer as timer
 import time
 from collections import deque
-from plot3d import Plotting
 from marker_class import Markers
 import transformations as tf
 import math
+import threading
+import queue
+
+# Edge to screen ratio (for filtering)
+EDGE = 0.02
+# Chessboard edge length in meters
+CHB_SIDE = 0.0254
+# Marker edge length in meters
+MARKER_SIDE = 0.0957
+# Time delay
+DELAY = 1.5
 
 class Camera():
-    def __init__(self):
+    def __init__(self, S, dir_queue):
         self.font = cv2.FONT_HERSHEY_SIMPLEX
 
         # for calibration
         self.db=0
-        self.chbEdgeLength = 0.0254
+        self.chbEdgeLength = CHB_SIDE
 
         self.start=True
         self.tstart=0
@@ -32,17 +42,22 @@ class Camera():
         self.imgpoints = [] # 2d points in image plane.
 
         # for loading camera matrices
-        self.not_loaded=True
+        self.not_loaded = True
 
         # for aruco markers
-        self.markerEdge=0.0957 # ArUco marker edge length in meters
-        self.seenMarkers=Markers()
+        self.markerEdge=MARKER_SIDE # ArUco marker edge length in meters
+        self.seenMarkers=Markers(MARKER_SIDE)
+        self.getFirst = True
+
+        # drone speed
+        self.speed = S
+        self.dir_queue = dir_queue
 
     def calibrator(self,frame):
         if self.calib==False:
             gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
             # find the chessboard corners
-            ret, corners = cv2.gpu.findChessboardCorners(gray, (9,6),None)
+            ret, corners = cv2.findChessboardCorners(gray, (9,6),None)
         
         if self.db<20:
             # if found, add object points, image points (after refining them)
@@ -132,40 +147,116 @@ class Camera():
         id_list=[]
 
         if CoordReset:
-            print("coords reset")
+            print("Coordinates reset")
             self.seenMarkers.nullCoords()
 
         if np.all(ids != None):
             ### IDs found
             # Pose estimation with marker edge length
-            rvec, tvec, _ = cv2.aruco.estimatePoseSingleMarkers(corners, self.markerEdge, self.mtx, self.dist)
+            rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners, self.markerEdge, self.mtx, self.dist)
 
             for i in range(0, ids.size):
-                cv2.aruco.drawAxis(frame, self.mtx, self.dist, rvec[i], tvec[i], 0.1)  # Draw axis
+                cv2.aruco.drawAxis(frame, self.mtx, self.dist, rvecs[i], tvecs[i], 0.1)  # Draw axis
 
                 id_list.append(ids[i][0])
-            
-            self.seenMarkers.appendMarker(id_list, tvec, rvec)
 
-            #self.seenMarkers.getCoords(id_list, tvec, rvec)
-            self.seenMarkers.getMov(id_list, tvec, rvec, CoordGet)
             # Draw square around the markers
             cv2.aruco.drawDetectedMarkers(frame, corners)
+
+            if self.getFirst:
+                if 1 in id_list:
+                    ind = id_list.index(1)
+                    self.lookForOrigin(tvecs[ind], rvecs[ind])
+                else:
+                    self.dir_queue.put([0, 0, 0, self.speed])
+            else:
+                # Reject markers, which have corners on the edges of the frame
+                id_list, tvecs, rvecs = self.filterCorners(w, h, corners, id_list, tvecs, rvecs)
+
+                if len(id_list) > 0:
+                    self.seenMarkers.appendMarker(id_list, tvecs, rvecs)
+
+                    #_, _, plotIMG = self.seenMarkers.getCoords(id_list, tvecs, rvecs)
+                    self.seenMarkers.getMov(id_list, tvecs, rvecs, CoordGet)
         else:
-            self.seenMarkers.getMov(id_list, np.zeros((1,3)), np.zeros((1,3)), CoordGet)
+            #self.seenMarkers.getMov(id_list, np.zeros((1,3)), np.zeros((1,3)), CoordGet)
             ### No IDs found
             cv2.putText(frame, "No Ids", (0,64), self.font, 1, (0,0,255),2,cv2.LINE_AA)
 
+            self.dir_queue.put([0, 0, 0, self.speed])
+
         return frame
 
+    # Look for origin marker and set directions
+    def lookForOrigin(self, tvec, rvec):
+        tvec = np.transpose(tvec)
+        rvec = np.transpose(rvec)
+        R = cv2.Rodrigues(rvec)[0]
+        tvec = -R.T.dot(tvec)
+        rvec = -R.T.dot(rvec)
+        tvec = np.transpose(tvec)
+        rvec = np.transpose(rvec)
+        rvec = tf.rotationVectorToEulerAngles(rvec)*180/math.pi
 
+        directions = np.zeros((1,4))
 
+        if rvec[0][1] > 5:
+            directions[0][3] = 1
+        elif rvec[0][1] < -5:
+            directions[0][3] = -1
+
+        if directions[0][3] == 0:
+            # X direction of drone
+            if tvec[0][0] > 0.05:
+                directions[0][0] = -1
+            elif tvec[0][0] < -0.05:
+                directions[0][0] = 1
+            # Z direction of drone
+            if tvec[0][1] > 0.15:
+                directions[0][2] = -1
+            elif tvec[0][1] < 0.05:
+                directions[0][2] = 1
+            # Y direction of drone
+            if tvec[0][2] > 0.45:
+                directions[0][1] = 1
+            elif tvec[0][2] < 0.35:
+                directions[0][1] = -1
+
+        directions = directions*self.speed
+        self.dir_queue.put(directions[0].tolist())
+        
+    # Filter out marker corners on the frame's edges
+    def filterCorners(self, w, h, corners, id_list, tvecs, rvecs):
+        length = len(id_list)
+        rejectIDs = []
+        mask = np.ones(length)
+        
+        for i in range(length):
+            for j in range(4):
+                xc = corners[i][0][j][0]
+                yc = corners[i][0][j][1]
+                if (xc < w*EDGE) or (xc > w-w*EDGE) or (yc < h*EDGE) or (yc > h-h*EDGE):
+                    rejectIDs.append(id_list[i])
+                    mask[i]=0
+                    #print("ID "+str(id_list[i])+" rejected")
+                    break
+
+        for i in range(len(rejectIDs)):
+            id_list.remove(rejectIDs[i])
+        
+        okay = np.where(mask > 0)
+        tvecs = np.r_[tvecs[okay]]
+        rvecs = np.r_[rvecs[okay]]
+
+        return id_list, tvecs, rvecs
+
+'''
 cap = cv2.VideoCapture(0)
 
-cam = Camera()
-getImages=False
-getCoords=False
-resetCoords=False
+direc_queue = queue.Queue()
+cam = Camera(10, direc_queue)
+getCoords = False
+resetCoords = False
 
 while True:
     ret, frame = cap.read()
@@ -178,6 +269,10 @@ while True:
     
     #frame=cuFrame.download()
     cv2.imshow('img', frame)
+
+    if not direc_queue.empty():
+        x, y, z, yaw = direc_queue.get()
+        print([x, y, z, yaw])
 
     c = cv2.waitKey(1)
 
@@ -197,6 +292,6 @@ while True:
         resetCoords = True
         continue
 
-
 cap.release()
 cv2.destroyAllWindows()
+'''

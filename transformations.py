@@ -33,7 +33,7 @@ def getTransformations(tvec_m, tvec_n, rvec_m, rvec_n, tvec_orig_m, tvec_orig_n,
         rvec_orig_m = np.transpose(rvec_orig_m)
         rvec_orig_n = np.transpose(rvec_orig_n)
         drvec = rvec_m - rvec_n
-        rvec_orig_n = rvec_orig_n + rvec_orig_m + dRot_m.dot(-R_m.T.dot(drvec))
+        rvec_orig_n = rvec_orig_n + rvec_orig_m - dRot_m.dot(-R_m.T.dot(drvec))
 
         allow_use += 1
     
@@ -47,7 +47,7 @@ def getTransformations(tvec_m, tvec_n, rvec_m, rvec_n, tvec_orig_m, tvec_orig_n,
 
         rvec_orig_n = rvec_orig_n/ALLOW_LIMIT
         print("rvec_orig_n:")
-        print(rotationVectorToEulerAngles(rvec_orig_n)*180/math.pi)
+        print(rotationVectorToEulerAngles(rvec_orig_n[:,0])*180/math.pi)
         print("tvec_mm:")
         print(tvec_mm)
         print("tvec_nm:")
@@ -67,6 +67,16 @@ def calculatePos(tvec, rvec, tvec_orig, dRot):
     tvec = tvec_orig + dRot.dot(tvec)
     tvec = np.transpose(tvec)
     return tvec
+
+# Calculate position data from stored values and current values
+def calculateAng(rvec, rvec_orig, dRot):
+    rvec = np.transpose(rvec)
+    rvec_orig = np.transpose(rvec_orig)
+    R = cv2.Rodrigues(rvec)[0]
+    rvec = -R.T.dot(rvec)
+    rvec = rvec_orig - dRot.dot(rvec)
+    rvec = np.transpose(rvec)
+    return rvec
 
 def RotateXYZ(pitch, roll, yaw, x, y, z):
         rotx=np.array([[1, 0, 0],[0, math.cos(pitch), -math.sin(pitch)],[0, math.sin(pitch), math.cos(pitch)]])
@@ -98,21 +108,23 @@ def isRotationMatrix(R) :
  
 # Calculates rotation matrix to euler angles
 def rotationVectorToEulerAngles(rvec):
-    R, _ = cv2.Rodrigues(rvec)
+    r = Rotation.from_rotvec(rvec)
+
+    # R, _ = cv2.Rodrigues(rvec)
  
-    assert(isRotationMatrix(R))
+    # assert(isRotationMatrix(R))
      
-    sy = math.sqrt(R[0,0] * R[0,0] +  R[1,0] * R[1,0])
-     
-    singular = sy < 1e-6
+    # sy = math.sqrt(R[0,0] * R[0,0] +  R[1,0] * R[1,0])
+    
+    # singular = sy < 1e-6
  
-    if  not singular :
-        x = math.atan2(R[2,1] , R[2,2])
-        y = math.atan2(-R[2,0], sy)
-        z = math.atan2(R[1,0], R[0,0])
-    else :
-        x = math.atan2(-R[1,2], R[1,1])
-        y = math.atan2(-R[2,0], sy)
-        z = 0
+    # if  not singular :
+    #     x = math.atan2(R[2,1] , R[2,2])
+    #     y = math.atan2(-R[2,0], sy)
+    #     z = math.atan2(R[1,0], R[0,0])
+    # else :
+    #     x = math.atan2(-R[1,2], R[1,1])
+    #     y = math.atan2(-R[2,0], sy)
+    #     z = 0
  
-    return np.array([x, y, z])
+    return r.as_euler('xyz')

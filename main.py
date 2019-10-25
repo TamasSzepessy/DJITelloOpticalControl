@@ -7,12 +7,11 @@ import time
 import queue
 import threading
 from collections import deque
-from plotting import Navigator
 from cam_class import Camera
 from timeit import default_timer as timer
 
 # Speed of the drone
-S = 60
+S = 15
 # Frames per second of the pygame window display
 FPS = 25
 
@@ -33,8 +32,8 @@ class FrontEnd(object):
 
         # Creat pygame window
         pygame.display.set_caption("Tello video stream")
-        self.width = 640
-        self.height = 480
+        self.width = 960
+        self.height = 720
         self.screen = pygame.display.set_mode([self.width, self.height])
 
         # create queue and event for data communications
@@ -52,6 +51,7 @@ class FrontEnd(object):
         self.yaw_velocity = 0
         self.speed = 10
         self.battery = 0
+        self.dir_queue=queue.Queue()
 
         self.send_rc_control = False
         self.send_navigator = False
@@ -59,8 +59,10 @@ class FrontEnd(object):
         self.calibrate = False
         self.getPoints = False
         self.resetPoints = False
+        self.save = False
+        self.getOrigin = False
 
-        self.cam = Camera()
+        self.cam = Camera(S, self.dir_queue)
 
         # create update timer
         pygame.time.set_timer(USEREVENT + 1, 50)
@@ -92,7 +94,7 @@ class FrontEnd(object):
 
         should_stop = False
         while not should_stop:
-            img=cv2.resize(frame_read.frame, (640,480))
+            img=cv2.resize(frame_read.frame, (960,720))
 
             if self.face_follow:
                 img, directions = self.cam.detectFace(img)
@@ -100,7 +102,7 @@ class FrontEnd(object):
             if self.calibrate:
                 img = self.cam.calibrator(img)
 
-            img=self.cam.aruco(img,False,self.getPoints,self.resetPoints)
+            img = self.cam.aruco(img, self.getPoints, self.resetPoints)
             if self.resetPoints:
                 self.resetPoints=False
 
@@ -126,6 +128,11 @@ class FrontEnd(object):
             if not self.data_queue.empty():
                 q=self.data_queue.get()
                 self.battery=q[3]
+
+            if self.save:
+                timestr = time.strftime("%Y%m%d_%H%M%S")
+                cv2.imwrite("images/"+timestr+".jpg", img)
+                self.save = False
 
             # write battery percentage
             img = self.cam.writeBattery(img, self.battery)   
@@ -190,19 +197,31 @@ class FrontEnd(object):
             self.tello.land()
             self.send_rc_control = False
         elif key == pygame.K_k: # camera calibration
-            self.calibrate = True
-        elif key == pygame.K_l:
-            self.calibrate = False
+            if self.calibrate:
+                self.calibrate = False
+            else:
+                self.calibrate = True
         elif key == pygame.K_c: # get aruco marker points
             if self.getPoints:
                 self.getPoints=False
             else:
                 self.getPoints = True
-                self.resetPoints = True            
+                self.resetPoints = True
+        elif key == pygame.K_m:  # save image
+            self.save = True
+        elif key == pygame.K_o:  # save image
+            if self.getOrigin:
+                self.getOrigin=False
+            else:
+                self.getOrigin = True
 
     def update(self, dirs):
         """ Update routine. Send velocities to Tello."""
         if self.send_rc_control:
+            if self.getOrigin and not self.dir_queue.empty():
+                x, y, z, yaw = self.dir_queue.get()
+                self.tello.send_rc_control(int(x), int(y), int(z), int(yaw)*2)
+            else:
                 self.tello.send_rc_control(self.left_right_velocity, self.for_back_velocity, self.up_down_velocity,
                                            self.yaw_velocity)
             
