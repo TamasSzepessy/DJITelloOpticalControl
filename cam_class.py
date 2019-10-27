@@ -8,6 +8,7 @@ import transformations as tf
 import math
 import threading
 import queue
+from pid import PID
 
 # Edge to screen ratio (for filtering)
 EDGE = 0.02
@@ -51,7 +52,16 @@ class Camera():
 
         # drone speed
         self.speed = S
+        self.amplify = 10
         self.dir_queue = dir_queue
+        self.t_lost = 0.
+        self.last_marker_pos = 1.
+
+        # controller
+        self.yaw_pid = PID(0.1, 0.00001, 0.001)
+        self.v_pid = PID(0.3, 0.00001, 0.0001)
+        self.vz_pid = PID(0.8, 0.00001, 0.0001)
+        self.target = np.array([[0., 0., 0.8, 0.]])
 
     def calibrator(self,frame):
         if self.calib==False:
@@ -167,8 +177,12 @@ class Camera():
                 if 1 in id_list:
                     ind = id_list.index(1)
                     self.lookForOrigin(tvecs[ind], rvecs[ind])
-                else:
-                    self.dir_queue.put([0, 0, 0, self.speed])
+                    self.t_lost = timer()
+                elif timer()-self.t_lost > 2:
+                    if self.last_marker_pos >= 0:
+                        self.dir_queue.put([0, 0, 0, self.speed*2])
+                    else:
+                        self.dir_queue.put([0, 0, 0, -self.speed*2])
             else:
                 # Reject markers, which have corners on the edges of the frame
                 id_list, tvecs, rvecs = self.filterCorners(w, h, corners, id_list, tvecs, rvecs)
@@ -183,46 +197,41 @@ class Camera():
             ### No IDs found
             cv2.putText(frame, "No Ids", (0,64), self.font, 1, (0,0,255),2,cv2.LINE_AA)
 
-            self.dir_queue.put([0, 0, 0, self.speed])
+            if timer()-self.t_lost > 2:
+                if self.last_marker_pos >= 0:
+                    self.dir_queue.put([0, 0, 0, self.speed*2])
+                else:
+                    self.dir_queue.put([0, 0, 0, -self.speed*2])
 
         return frame
 
     # Look for origin marker and set directions
     def lookForOrigin(self, tvec, rvec):
-        tvec = np.transpose(tvec)
-        rvec = np.transpose(rvec)
-        R = cv2.Rodrigues(rvec)[0]
-        tvec = -R.T.dot(tvec)
-        rvec = -R.T.dot(rvec)
-        tvec = np.transpose(tvec)
-        rvec = np.transpose(rvec)
+        self.last_marker_pos = tvec[0][0]
+        # tvec = np.transpose(tvec)
+        # rvec = np.transpose(rvec)
+        # R = cv2.Rodrigues(rvec)[0]
+        # tvec = -R.T.dot(tvec)
+        # rvec = -R.T.dot(rvec)
+        # tvec = np.transpose(tvec)
+        # rvec = np.transpose(rvec)
         rvec = tf.rotationVectorToEulerAngles(rvec)*180/math.pi
+        # print(tvec)
+        # print(rvec)
 
         directions = np.zeros((1,4))
+        A = self.amplify*self.speed
 
-        if rvec[0][1] > 5:
-            directions[0][3] = 1
-        elif rvec[0][1] < -5:
-            directions[0][3] = -1
+        err_yaw = rvec[0][1] - self.target[0][3]
+        directions[0][3] = self.speed*self.yaw_pid.control(err_yaw)
 
-        if directions[0][3] == 0:
-            # X direction of drone
-            if tvec[0][0] > 0.05:
-                directions[0][0] = -1
-            elif tvec[0][0] < -0.05:
-                directions[0][0] = 1
-            # Z direction of drone
-            if tvec[0][1] > 0.15:
-                directions[0][2] = -1
-            elif tvec[0][1] < 0.05:
-                directions[0][2] = 1
-            # Y direction of drone
-            if tvec[0][2] > 0.45:
-                directions[0][1] = 1
-            elif tvec[0][2] < 0.35:
-                directions[0][1] = -1
+        err_x = self.target[0][0] - tvec[0][0]
+        directions[0][0] = -A*self.v_pid.control(err_x)
+        err_y = self.target[0][2] - tvec[0][2]
+        directions[0][1] = -A*self.v_pid.control(err_y)
+        err_z = self.target[0][1] - tvec[0][1]
+        directions[0][2] = A*self.vz_pid.control(err_z)
 
-        directions = directions*self.speed
         self.dir_queue.put(directions[0].tolist())
         
     # Filter out marker corners on the frame's edges
@@ -254,7 +263,7 @@ class Camera():
 cap = cv2.VideoCapture(0)
 
 direc_queue = queue.Queue()
-cam = Camera(10, direc_queue)
+cam = Camera(15, direc_queue)
 getCoords = False
 resetCoords = False
 
@@ -272,7 +281,7 @@ while True:
 
     if not direc_queue.empty():
         x, y, z, yaw = direc_queue.get()
-        print([x, y, z, yaw])
+        print([int(x), int(y), int(z), int(yaw)])
 
     c = cv2.waitKey(1)
 
@@ -295,3 +304,4 @@ while True:
 cap.release()
 cv2.destroyAllWindows()
 '''
+

@@ -132,12 +132,14 @@ class Tello:
             try:
                 state_temp, _ = self.stateSocket.recvfrom(1024)  # buffer size is 1024 bytes
                 self.state = state_temp.decode('ASCII').split(";")
-                pitch = int(self.state[0][self.state[0].index(":")+1:])
-                roll = int(self.state[1][self.state[1].index(":")+1:])
-                yaw = int(self.state[2][self.state[2].index(":")+1:])
+                print(self.state)
+                # convert to righthand system
+                pitch = -int(self.state[0][self.state[0].index(":")+1:])
+                roll = -int(self.state[1][self.state[1].index(":")+1:])
+                yaw = -int(self.state[2][self.state[2].index(":")+1:])
+                # battery percentage
                 bat = int(self.state[10][self.state[10].index(":")+1:])
-                state = np.array([pitch, roll, yaw, bat])
-                self.data_queue.put(state)
+                self.data_queue.put([pitch, roll, yaw, bat])
             except Exception as e:
                 self.LOGGER.error(e)
                 break

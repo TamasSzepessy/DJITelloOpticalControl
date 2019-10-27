@@ -11,7 +11,8 @@ from cam_class import Camera
 from timeit import default_timer as timer
 
 # Speed of the drone
-S = 15
+S = 60
+S_prog = 15
 # Frames per second of the pygame window display
 FPS = 25
 
@@ -32,8 +33,8 @@ class FrontEnd(object):
 
         # Creat pygame window
         pygame.display.set_caption("Tello video stream")
-        self.width = 960
-        self.height = 720
+        self.width = 640
+        self.height = 480
         self.screen = pygame.display.set_mode([self.width, self.height])
 
         # create queue and event for data communications
@@ -62,7 +63,7 @@ class FrontEnd(object):
         self.save = False
         self.getOrigin = False
 
-        self.cam = Camera(S, self.dir_queue)
+        self.cam = Camera(S_prog, self.dir_queue)
 
         # create update timer
         pygame.time.set_timer(USEREVENT + 1, 50)
@@ -126,16 +127,23 @@ class FrontEnd(object):
                 break
 
             if not self.data_queue.empty():
-                q=self.data_queue.get()
-                self.battery=q[3]
+                pitch, roll, yaw, bat = self.data_queue.get()
+                self.data_queue.queue.clear()
+                self.battery = bat
+                # print([pitch, roll, yaw])
 
             if self.save:
                 timestr = time.strftime("%Y%m%d_%H%M%S")
                 cv2.imwrite("images/"+timestr+".jpg", img)
                 self.save = False
 
+            # if self.battery<20:
+            #     self.tello.land()
+
             # write battery percentage
-            img = self.cam.writeBattery(img, self.battery)   
+            img = self.cam.writeBattery(img, self.battery)
+
+            img=cv2.resize(img, (640,480))
             
             if (img.shape[1] != self.width) or (img.shape[0] != self.height):
                 self.width = img.shape[1]
@@ -220,8 +228,10 @@ class FrontEnd(object):
         if self.send_rc_control:
             if self.getOrigin and not self.dir_queue.empty():
                 x, y, z, yaw = self.dir_queue.get()
-                self.tello.send_rc_control(int(x), int(y), int(z), int(yaw)*2)
+                #print([int(x), int(y), int(z), int(yaw)])
+                self.tello.send_rc_control(int(x), int(y), int(z), int(yaw))
             else:
+                self.dir_queue.queue.clear()
                 self.tello.send_rc_control(self.left_right_velocity, self.for_back_velocity, self.up_down_velocity,
                                            self.yaw_velocity)
             
