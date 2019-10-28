@@ -132,7 +132,7 @@ class Tello:
             try:
                 state_temp, _ = self.stateSocket.recvfrom(1024)  # buffer size is 1024 bytes
                 self.state = state_temp.decode('ASCII').split(";")
-                print(self.state)
+                #print(self.state)
                 # convert to righthand system
                 pitch = -int(self.state[0][self.state[0].index(":")+1:])
                 roll = -int(self.state[1][self.state[1].index(":")+1:])

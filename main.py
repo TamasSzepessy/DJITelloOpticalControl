@@ -63,7 +63,7 @@ class FrontEnd(object):
         self.save = False
         self.getOrigin = False
 
-        self.cam = Camera(S_prog, self.dir_queue)
+        self.cam = Camera(S_prog, self.dir_queue, 'camcalib.npz')
 
         # create update timer
         pygame.time.set_timer(USEREVENT + 1, 50)
@@ -234,9 +234,6 @@ class FrontEnd(object):
                 self.dir_queue.queue.clear()
                 self.tello.send_rc_control(self.left_right_velocity, self.for_back_velocity, self.up_down_velocity,
                                            self.yaw_velocity)
-            
-        
-
 
 def main():
     frontend = FrontEnd()

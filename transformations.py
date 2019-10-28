@@ -60,6 +60,13 @@ def getTransformations(tvec_m, tvec_n, rvec_m, rvec_n, tvec_orig_m, tvec_orig_n,
 
 # Calculate position data from stored values and current values
 def calculatePos(tvec, rvec, tvec_orig, dRot):
+    # tvec = np.transpose(tvec)
+    # rvec = np.transpose(rvec)
+    # R = cv2.Rodrigues(rvec)[0]
+    # tvec = -R.T.dot(tvec)
+    # rvec = -R.T.dot(rvec)
+    # tvec = np.transpose(tvec)
+    # rvec = np.transpose(rvec)
     tvec = np.transpose(tvec)
     tvec_orig = np.transpose(tvec_orig)
     R = cv2.Rodrigues(rvec)[0]

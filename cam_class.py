@@ -18,10 +18,13 @@ CHB_SIDE = 0.0254
 MARKER_SIDE = 0.0957
 # Time delay
 DELAY = 1.5
+# Error allowed
+ERROR = 0.15
 
 class Camera():
-    def __init__(self, S, dir_queue):
+    def __init__(self, S, dir_queue, cam_data):
         self.font = cv2.FONT_HERSHEY_SIMPLEX
+        self.cam_data = cam_data
 
         # for calibration
         self.db=0
@@ -50,18 +53,22 @@ class Camera():
         self.seenMarkers=Markers(MARKER_SIDE)
         self.getFirst = True
 
-        # drone speed
+        # drone navigation
         self.speed = S
         self.amplify = 10
         self.dir_queue = dir_queue
         self.t_lost = 0.
+        self.t_inPos = 0.
         self.last_marker_pos = 1.
+        self.beenThere = []
+        self.TargetID = 1
+        self.findNew = False
 
         # controller
         self.yaw_pid = PID(0.1, 0.00001, 0.001)
-        self.v_pid = PID(0.3, 0.00001, 0.0001)
+        self.v_pid = PID(0.5, 0.00001, 0.0001)
         self.vz_pid = PID(0.8, 0.00001, 0.0001)
-        self.target = np.array([[0., 0., 0.8, 0.]])
+        self.TargetPos = np.array([[0., 0., 0.8, 0.]])
 
     def calibrator(self,frame):
         if self.calib==False:
@@ -130,7 +137,7 @@ class Camera():
     def aruco(self, frame, CoordGet, CoordReset):
         # Get the calibrated camera matrices
         if self.not_loaded:
-            with np.load('camcalib.npz') as X:
+            with np.load(self.cam_data) as X:
                 self.mtx = X['mtx']
                 self.dist = X['dist']
             self.not_loaded=False
@@ -173,17 +180,19 @@ class Camera():
             # Draw square around the markers
             cv2.aruco.drawDetectedMarkers(frame, corners)
 
-            if self.getFirst:
-                if 1 in id_list:
-                    ind = id_list.index(1)
-                    self.lookForOrigin(tvecs[ind], rvecs[ind])
-                    self.t_lost = timer()
-                elif timer()-self.t_lost > 2:
-                    if self.last_marker_pos >= 0:
-                        self.dir_queue.put([0, 0, 0, self.speed*2])
-                    else:
-                        self.dir_queue.put([0, 0, 0, -self.speed*2])
-            else:
+            if not self.findNew:
+                frame = self.drawCenter(frame, id_list, corners, w, h)
+                self.navigateToMarker(id_list, tvecs, rvecs, corners)
+            elif self.findNew:
+                self.dir_queue.put([0, 0, 0, self.speed*2])
+                for ID in id_list:
+                    if ID not in self.beenThere:
+                        self.TargetID = ID
+                        self.changeTarget()
+                        self.findNew = False
+                        break
+
+            if not self.getFirst:
                 # Reject markers, which have corners on the edges of the frame
                 id_list, tvecs, rvecs = self.filterCorners(w, h, corners, id_list, tvecs, rvecs)
 
@@ -206,34 +215,99 @@ class Camera():
         return frame
 
     # Look for origin marker and set directions
-    def lookForOrigin(self, tvec, rvec):
-        self.last_marker_pos = tvec[0][0]
-        # tvec = np.transpose(tvec)
-        # rvec = np.transpose(rvec)
-        # R = cv2.Rodrigues(rvec)[0]
-        # tvec = -R.T.dot(tvec)
-        # rvec = -R.T.dot(rvec)
-        # tvec = np.transpose(tvec)
-        # rvec = np.transpose(rvec)
-        rvec = tf.rotationVectorToEulerAngles(rvec)*180/math.pi
-        # print(tvec)
-        # print(rvec)
+    def navigateToMarker(self, seen_id_list, tvecs, rvecs, corners):
+        if self.TargetID not in seen_id_list:
+            if timer()-self.t_lost > 2:
+                if self.last_marker_pos >= 0:
+                    self.dir_queue.put([0, 0, 0, self.speed*2])
+                else:
+                    self.dir_queue.put([0, 0, 0, -self.speed*2])
+        else:
+            # select needed vectors
+            ind = seen_id_list.index(self.TargetID)
+            tvec = tvecs[ind]
+            rvec = rvecs[ind]
+            # only selected vectors from now
+            self.last_marker_pos = tvec[0][0]
+            rvec = tf.rotationVectorToEulerAngles(rvec)*180/math.pi
+            # flip the yaw angle if marker is upside down
+            if abs(rvec[0][2]) > 90:
+                rvec[0][1] = -rvec[0][1]
+            # print(tvec)
+            # print(rvec)
 
-        directions = np.zeros((1,4))
-        A = self.amplify*self.speed
+            directions = np.zeros((1,4))
+            A = self.amplify*self.speed
 
-        err_yaw = rvec[0][1] - self.target[0][3]
-        directions[0][3] = self.speed*self.yaw_pid.control(err_yaw)
+            err_yaw = rvec[0][1] - self.TargetPos[0][3]
+            directions[0][3] = self.speed*self.yaw_pid.control(err_yaw)
 
-        err_x = self.target[0][0] - tvec[0][0]
-        directions[0][0] = -A*self.v_pid.control(err_x)
-        err_y = self.target[0][2] - tvec[0][2]
-        directions[0][1] = -A*self.v_pid.control(err_y)
-        err_z = self.target[0][1] - tvec[0][1]
-        directions[0][2] = A*self.vz_pid.control(err_z)
+            err_x = self.TargetPos[0][0] - tvec[0][0]
+            directions[0][0] = -A*self.v_pid.control(err_x)
+            err_y = self.TargetPos[0][2] - tvec[0][2]
+            directions[0][1] = -A*self.v_pid.control(err_y)
+            err_z = self.TargetPos[0][1] - tvec[0][1]
+            directions[0][2] = A*self.vz_pid.control(err_z)
 
-        self.dir_queue.put(directions[0].tolist())
+            if abs(err_x) < ERROR and abs(err_y) < ERROR and abs(err_z) < 0.1 and abs(err_yaw) < 5:
+                if timer()-self.t_inPos > 1:
+                    if self.TargetID == 1:
+                        self.getFirst = False
+                        print("Origin set")
+                    if not self.getFirst:
+                        self.beenThere.append(self.TargetID)
+                        self.changeObjective(seen_id_list, tvecs)
+                        if not self.findNew:
+                            self.changeTarget()
+                            # reset PIDs
+                            self.yaw_pid.reset()
+                            self.v_pid.reset()
+                            self.vz_pid.reset()
+                            print("Target changed to "+str(self.TargetID))
+                        else:
+                            print("Searching for new marker...") 
+            else:
+                self.t_inPos = timer()
+
+            self.t_lost = timer()
+            self.dir_queue.put(directions[0].tolist())
+
+    def changeTarget(self):
+        if self.TargetID == 1:
+            print("Origin marker")
+            self.TargetPos = np.array([[0., 0., 0.8, 0.]])
+        elif self.TargetID < 30:
+            print("Left side marker")
+            self.TargetPos = np.array([[0., 0., 1., -45.]])
+        elif self.TargetID < 40:
+            print("Corner, rotate right")
+            self.TargetPos = np.array([[0., 0., 1., 0.]])        
+    
+    def changeObjective(self, seen_id_list, tvecs):
+        length = len(seen_id_list)
+        dist_minimum = 10000
+        min_ind = self.TargetID
+        for i in range(length):
+            if np.linalg.norm(tvecs[i]) < dist_minimum and seen_id_list[i] not in self.beenThere:
+                dist_minimum = np.linalg.norm(tvecs[i])
+                min_ind = seen_id_list[i]
+
+        if self.TargetID == min_ind:
+            self.findNew = True
+        else:
+            self.TargetID = min_ind
+
+    def drawCenter(self, frame, seen_id_list, corners, w, h):
+        if self.TargetID not in seen_id_list:
+            pass
+        else:
+            ind = seen_id_list.index(self.TargetID)
+            cx = int((corners[ind][0][0][0]+corners[ind][0][1][0]+corners[ind][0][2][0]+corners[ind][0][3][0])/4)
+            cy = int((corners[ind][0][0][1]+corners[ind][0][1][1]+corners[ind][0][2][1]+corners[ind][0][3][1])/4)
+            cv2.line(frame, (int(w/2), int(h/2)), (cx, cy), (0,255,255), 3)
         
+        return frame
+
     # Filter out marker corners on the frame's edges
     def filterCorners(self, w, h, corners, id_list, tvecs, rvecs):
         length = len(id_list)
@@ -258,12 +332,12 @@ class Camera():
         rvecs = np.r_[rvecs[okay]]
 
         return id_list, tvecs, rvecs
-
+'''
 '''
 cap = cv2.VideoCapture(0)
 
 direc_queue = queue.Queue()
-cam = Camera(15, direc_queue)
+cam = Camera(15, direc_queue, 'camcalib_webcam.npz')
 getCoords = False
 resetCoords = False
 
@@ -304,4 +378,4 @@ while True:
 cap.release()
 cv2.destroyAllWindows()
 '''
-
+'''

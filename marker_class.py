@@ -37,7 +37,8 @@ class Markers():
     def appendMarker(self, seen_id_list, tvec, rvec):
         for n_id in seen_id_list:
             n_index = seen_id_list.index(n_id)
-            if n_id not in self.ids and len(self.ids) == 0:
+            if n_id == 1:
+                # not in self.ids and len(self.ids) == 0:
                 self.ids.append(n_id)
                 self.tvec_origin.append(np.array([[0, 0, 0]]))
                 self.rvec_origin.append(rvec[n_index])
@@ -136,6 +137,15 @@ class Markers():
 
         return dtv, drv
     
+    # Check if ID already stored
+    def ContainsIDs(self, seen_id_list):
+        temp = False
+        for ID in seen_id_list:
+            if ID in self.ids:
+                temp = True
+        
+        return temp
+
     # Reset the coordinate system
     def nullCoords(self):
         self.ids = []

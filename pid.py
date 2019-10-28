@@ -3,17 +3,17 @@ class PID(object):
         self.kp = kp
         self.ki = ki
         self.kd = kd
-        self.error_intergral = 0
+        self.error_int = 0
         self.error_prev = None
 
     def control(self, error):
-        self.error_intergral += error
+        self.error_int += error
         if self.error_prev is None:
             self.error_prev = error
-        error_derivative = error - self.error_prev
+        error_deriv = error - self.error_prev
         self.error_prev = error
-        return self.kp*error + self.ki*self.error_intergral + self.kd*error_derivative
+        return self.kp*error + self.ki*self.error_int + self.kd*error_deriv
 
     def reset(self):
         self.error_prev = None
-        self.error_intergral = 0
+        self.error_int = 0
