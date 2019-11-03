@@ -52,7 +52,7 @@ class Tello:
 
     stream_on = False
 
-    def __init__(self, data_queue, quit_event,
+    def __init__(self, data_queue,
         host='192.168.10.1',
         port=8889,
         client_socket=None,
@@ -60,7 +60,6 @@ class Tello:
         retry_count=3):
 
         self.data_queue = data_queue
-        self.quit_event = quit_event
 
         self.address = (host, port)
         self.response = None
@@ -79,7 +78,7 @@ class Tello:
         self.stateSocket = socket.socket(socket.AF_INET,  # Internet
                                         socket.SOCK_DGRAM)  # UDP
         self.stateSocket.bind((self.SS_UDP_IP, self.SS_UDP_PORT))
-        self.stateSocket.settimeout(1)
+        self.stateSocket.settimeout(10)
 
         # Run tello udp receiver on background
         thread = threading.Thread(target=self.run_udp_receiver, args=())
@@ -132,14 +131,16 @@ class Tello:
             try:
                 state_temp, _ = self.stateSocket.recvfrom(1024)  # buffer size is 1024 bytes
                 self.state = state_temp.decode('ASCII').split(";")
-                #print(self.state)
-                # convert to righthand system
+                # print(self.state)
+                # convert to right hand system
                 pitch = -int(self.state[0][self.state[0].index(":")+1:])
                 roll = -int(self.state[1][self.state[1].index(":")+1:])
                 yaw = -int(self.state[2][self.state[2].index(":")+1:])
+                # tof height
+                tof = int(self.state[2][self.state[8].index(":")+1:])
                 # battery percentage
                 bat = int(self.state[10][self.state[10].index(":")+1:])
-                self.data_queue.put([pitch, roll, yaw, bat])
+                self.data_queue.put([pitch, roll, yaw, tof, bat])
             except Exception as e:
                 self.LOGGER.error(e)
                 break

@@ -9,6 +9,7 @@ import threading
 from collections import deque
 from cam_class import Camera
 from timeit import default_timer as timer
+from video_writer import WriteVideo
 
 # Speed of the drone
 S = 60
@@ -37,13 +38,11 @@ class FrontEnd(object):
         self.height = 480
         self.screen = pygame.display.set_mode([self.width, self.height])
 
-        # create queue and event for data communications
+        # create queue for data communications
         self.data_queue=queue.Queue()
-        self.quit_event=threading.Event()
-        self.quit_event.clear()
 
         # Init Tello object that interacts with the Tello drone
-        self.tello = Tello(self.data_queue, self.quit_event)
+        self.tello = Tello(self.data_queue)
 
         # Drone velocities between -100~100
         self.for_back_velocity = 0
@@ -52,22 +51,36 @@ class FrontEnd(object):
         self.yaw_velocity = 0
         self.speed = 10
         self.battery = 0
+        self.angles = [0., 0., 0., 0.]
         self.dir_queue=queue.Queue()
 
         self.send_rc_control = False
-        self.send_navigator = False
-        self.face_follow = False
         self.calibrate = False
         self.getPoints = False
         self.resetPoints = False
         self.save = False
         self.getOrigin = False
 
-        self.cam = Camera(S_prog, self.dir_queue, 'camcalib.npz')
+        # Creating video queue
+        self.video_queue = queue.Queue()
+        self.END_event = threading.Event()
+        self.END_event.clear()
+        self.videoWrite = WriteVideo(self.video_queue, FPS, self.END_event)
+        # Run video writer in the background
+        thread_vid = threading.Thread(target=self.videoWrite.writer)
+        thread_vid.daemon = True
+        thread_vid.start()
 
-        # create update timer
+        self.getCoords_event = threading.Event()
+        self.getCoords_event.clear()
+        self.navigate_event = threading.Event()
+        self.navigate_event.clear()
+
+        self.cam = Camera(S_prog, self.dir_queue, 'camcalib.npz',
+                          self.getCoords_event, self.navigate_event, self.END_event)
+
+        # Create update timer
         pygame.time.set_timer(USEREVENT + 1, 50)
-
 
     def run(self):
 
@@ -89,21 +102,24 @@ class FrontEnd(object):
             return
 
         frame_read = self.tello.get_frame_read()
-        # self.tello.get_data_read()
-        # queue_diff = timer()
         directions = np.zeros(4)
 
         should_stop = False
         while not should_stop:
             img=cv2.resize(frame_read.frame, (960,720))
 
-            if self.face_follow:
-                img, directions = self.cam.detectFace(img)
+            if not self.data_queue.empty():
+                pitch, roll, yaw, tof, bat = self.data_queue.get()
+                self.data_queue.queue.clear()
+                self.battery = bat
+                #print(tof)
+                self.angles_tof = [pitch, roll, yaw, tof/100]
+                #print([pitch, roll, yaw, tof])
 
             if self.calibrate:
                 img = self.cam.calibrator(img)
 
-            img = self.cam.aruco(img, self.getPoints, self.resetPoints)
+            img = self.cam.aruco(img, self.getPoints, self.resetPoints, self.angles_tof)
             if self.resetPoints:
                 self.resetPoints=False
 
@@ -112,11 +128,9 @@ class FrontEnd(object):
                     self.update(directions)
                 elif event.type == QUIT:
                     should_stop = True
-                    self.quit_event.set()
                 elif event.type == KEYDOWN:
                     if event.key == K_ESCAPE:
                         should_stop = True
-                        self.quit_event.set()
                     else:
                         self.keydown(event.key)
                 elif event.type == KEYUP:
@@ -126,16 +140,15 @@ class FrontEnd(object):
                 frame_read.stop()
                 break
 
-            if not self.data_queue.empty():
-                pitch, roll, yaw, bat = self.data_queue.get()
-                self.data_queue.queue.clear()
-                self.battery = bat
-                # print([pitch, roll, yaw])
-
+            # Save image on 'M' press
             if self.save:
                 timestr = time.strftime("%Y%m%d_%H%M%S")
                 cv2.imwrite("images/"+timestr+".jpg", img)
                 self.save = False
+
+            # Start navigation, points and video capture
+            if self.getCoords_event.is_set():
+                self.video_queue.put(np.copy(img))
 
             # if self.battery<20:
             #     self.tello.land()
@@ -218,17 +231,20 @@ class FrontEnd(object):
         elif key == pygame.K_m:  # save image
             self.save = True
         elif key == pygame.K_o:  # save image
-            if self.getOrigin:
-                self.getOrigin=False
+            if self.navigate_event.is_set():
+                self.navigate_event.clear()
             else:
-                self.getOrigin = True
+                self.navigate_event.set()
+        elif key == pygame.K_x:  # end video
+            self.END_event.set()
+            self.getPoints = False
 
     def update(self, dirs):
         """ Update routine. Send velocities to Tello."""
         if self.send_rc_control:
-            if self.getOrigin and not self.dir_queue.empty():
+            if self.navigate_event.is_set() and not self.dir_queue.empty():
                 x, y, z, yaw = self.dir_queue.get()
-                #print([int(x), int(y), int(z), int(yaw)])
+                #print([x, y, z, yaw])
                 self.tello.send_rc_control(int(x), int(y), int(z), int(yaw))
             else:
                 self.dir_queue.queue.clear()

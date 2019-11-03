@@ -6,6 +6,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.patches import FancyArrowPatch
 from mpl_toolkits.mplot3d import proj3d
 from scipy import interpolate
+from scipy.spatial.transform import Rotation
 import math
 import cv2
 import time
@@ -34,18 +35,18 @@ class Plotting():
         #plt.show()
         #self.fig.show()
 
-        self.bx_prev, self.by_prev, self.bz_prev = self.plotCoordSys(np.array([[0, 0, 0]]), np.array([[0.,0.,0.]]))
+        # self.bx_prev, self.by_prev, self.bz_prev = self.plotCoordSys(np.array([[0, 0, 0]]), np.array([[0.,0.,0.]]), True)
 
-    def RotateXYZ(self, pitch, roll, yaw, x, y, z):
-        rotx=np.array([[1, 0, 0],[0, math.cos(pitch), -math.sin(pitch)],[0, math.sin(pitch), math.cos(pitch)]])
-        roty=np.array([[math.cos(roll), 0, math.sin(roll)],[0, 1, 0],[-math.sin(roll), 0, math.cos(roll)]])
-        rotz=np.array([[math.cos(pitch), -math.sin(pitch), 0],[math.sin(pitch), math.cos(pitch), 0],[0, 0, 1]])
-        rot=np.matmul(roty,rotz)
-        rot=np.matmul(rotx,rot)
-        temp = np.matmul(np.column_stack((x,y,z)),rot)
-        xr, yr, zr = temp[:,0], temp[:,1], temp[:,2]
+    # def RotateXYZ(self, pitch, roll, yaw, x, y, z):
+    #     rotx=np.array([[1, 0, 0],[0, math.cos(pitch), -math.sin(pitch)],[0, math.sin(pitch), math.cos(pitch)]])
+    #     roty=np.array([[math.cos(roll), 0, math.sin(roll)],[0, 1, 0],[-math.sin(roll), 0, math.cos(roll)]])
+    #     rotz=np.array([[math.cos(pitch), -math.sin(pitch), 0],[math.sin(pitch), math.cos(pitch), 0],[0, 0, 1]])
+    #     rot=np.matmul(roty,rotz)
+    #     rot=np.matmul(rotx,rot)
+    #     temp = np.matmul(np.column_stack((x,y,z)),rot)
+    #     xr, yr, zr = temp[:,0], temp[:,1], temp[:,2]
 
-        return xr, yr, zr
+    #     return xr, yr, zr
 
     def Average(self, x, y, z, i):
         pass
@@ -71,9 +72,9 @@ class Plotting():
             rzp = orientation[0][2]*r_origin[i][0][orientation[1][2]]
             if i == 0:
                 # print(t_origin[i])
-                bx, by, bz = self.plotCoordSys(np.array([[xp,yp,zp]]), np.array([[0.,0.,0.]]))
+                bx, by, bz = self.plotCoordSys(np.array([[xp,yp,zp]]), np.array([[0.,0.,0.]]), False)
             else:
-                bx, by, bz = self.plotCoordSys(np.array([[xp,yp,zp]]), np.array([[rxp,ryp,rzp]]))
+                bx, by, bz = self.plotCoordSys(np.array([[xp,yp,zp]]), np.array([[rxp,ryp,rzp]]), False)
             self.ax.add_artist(bx)
             self.ax.add_artist(by)
             self.ax.add_artist(bz)
@@ -215,61 +216,109 @@ class Plotting():
             # self.fig.canvas.flush_events()   # update the plot and take care of window events (like resizing etc.)
             # time.sleep(0.04)               # wait for next loop iteration'''
     
-    def plotRT(self, tvec, rvec, orientation, t_origin, r_origin, allow_use, ALLOW_LIMIT):
-        xp=orientation[0][0]*tvec[0,orientation[1][0]]
-        yp=orientation[0][1]*tvec[0,orientation[1][1]]
-        zp=orientation[0][2]*tvec[0,orientation[1][2]]
+    def plotRT(self, file):
+        with np.load(file) as X:
+            tvec = X['tvecs']
+            rvec = X['rvecs']
+            t_origin = X['t_origin']
+            r_origin = X['t_origin']
+            orientation = X['orientation']
 
-        rxp=orientation[0][0]*rvec[0,orientation[1][0]]
-        ryp=orientation[0][1]*rvec[0,orientation[1][1]]
-        rzp=orientation[0][2]*rvec[0,orientation[1][2]]
+        plt.ion()
+        fig = plt.figure()
+        self.ax = fig.add_subplot(111, projection='3d')
 
-        for i in range(len(t_origin)):
-            if allow_use[i] == ALLOW_LIMIT:
-                xo = orientation[0][0]*t_origin[i][0,orientation[1][0]]
-                yo = orientation[0][1]*t_origin[i][0,orientation[1][1]]
-                zo = orientation[0][2]*t_origin[i][0,orientation[1][2]]
-                if i == 0:
-                    rxo=0.
-                    ryo=0.
-                    rzo=0.
-                else:
-                    rxo = orientation[0][0]*r_origin[i][0,orientation[1][0]]
-                    ryo = orientation[0][1]*r_origin[i][0,orientation[1][1]]
-                    rzo = orientation[0][2]*r_origin[i][0,orientation[1][2]]                
-                    
-                bx, by, bz = self.plotCoordSys(np.array([[xo, yo, zo]]), np.array([[rxo, ryo, rzo]]))
+        # add the marker origins
+        for i in range(t_origin.shape[0]):
+            xp = orientation[0][0]*t_origin[i][0][orientation[1][0]]
+            yp = orientation[0][1]*t_origin[i][0][orientation[1][1]]
+            zp = orientation[0][2]*t_origin[i][0][orientation[1][2]]
+            rxp = orientation[0][0]*r_origin[i][0][orientation[1][0]]
+            ryp = orientation[0][1]*r_origin[i][0][orientation[1][1]]
+            rzp = orientation[0][2]*r_origin[i][0][orientation[1][2]]
+            if i == 0:
+                # print(t_origin[i])
+                bx, by, bz = self.plotCoordSys(np.array([[xp,yp,zp]]), np.array([[0.,0.,0.]]), False)
+            else:
+                bx, by, bz = self.plotCoordSys(np.array([[xp,yp,zp]]), np.array([[rxp,ryp,rzp]]), False)
+            self.ax.add_artist(bx)
+            self.ax.add_artist(by)
+            self.ax.add_artist(bz)
+
+        xp = orientation[0][0]*tvec[:,orientation[1][0]]
+        yp = orientation[0][1]*tvec[:,orientation[1][1]]
+        zp = orientation[0][2]*tvec[:,orientation[1][2]]
+        
+        okay = np.where(np.abs(np.diff(xp)) + np.abs(np.diff(yp)) + np.abs(np.diff(zp)) > 0)
+        xp = np.r_[xp[okay], xp[-1]]
+        yp = np.r_[yp[okay], yp[-1]]
+        zp = np.r_[zp[okay], zp[-1]]
+
+        maxval=max((max(xp),max(yp),max(zp)))
+        minval=min((min(xp),min(yp),min(zp)))
+
+        self.ax.set_xlim([minval,maxval])
+        self.ax.set_ylim([minval,maxval])
+        self.ax.set_zlim([minval,maxval])
+
+        self.markerEdge = self.markerEdge*10
+
+        bx_prev, by_prev, bz_prev = self.plotCoordSys(np.array([[0, 0, 0]]), np.array([[0.,0.,0.]]), False)
+        i = 0
+        while(True):
+            try:
+                bx_prev.remove()
+                by_prev.remove()
+                bz_prev.remove()
+            except:
+                pass
+
+            if i < len(xp):
+                rvec_act = np.array([[float(rvec[i][0]),float(rvec[i][1]),float(rvec[i][2])]])
+                # print(rvec_act)
+                # r = Rotation.from_euler('xyz', rvec_act)
+                # rvec_act = r.as_rotvec()
+                # Moving a coordinate system on the camera positions (origin, rotation) given
+                bx, by, bz = self.plotCoordSys(np.array([[xp[i],yp[i],zp[i]]]), rvec_act, True)
                 self.ax.add_artist(bx)
                 self.ax.add_artist(by)
                 self.ax.add_artist(bz)
 
-        try:
-            self.bx_prev.remove()
-            self.by_prev.remove()
-            self.bz_prev.remove()
-        except:
-            pass
+                bx_prev = bx
+                by_prev = by
+                bz_prev = bz
+            else:
+                try:
+                    tck, _ = interpolate.splprep([xp, yp, zp], s=0.001)
+                    # x_knots, y_knots, z_knots = interpolate.splev(tck[0], tck)
+                    u_fine = np.linspace(0,1,tvec.shape[0])
+                    x_fine, y_fine, z_fine = interpolate.splev(u_fine, tck)
+                    # ax.plot(x_knots, y_knots, z_knots, 'go')
+                    self.ax.plot(x_fine, y_fine, z_fine, 'g')
+                except:
+                    print("no spline")
 
-        bx, by, bz = self.plotCoordSys(np.array([[xp, yp, zp]]), np.array([[rxp, ryp, rzp]]))
-        self.ax.add_artist(bx)
-        self.ax.add_artist(by)
-        self.ax.add_artist(bz)
+            i += 1
+            plt.pause(0.04)
 
-        self.bx_prev = bx
-        self.by_prev = by
-        self.bz_prev = bz
+    def RotateXYZ(self, pitch, roll, yaw):
+        pitch, roll, yaw = [pitch*math.pi/180, roll*math.pi/180, yaw*math.pi/180]
+        RotX=np.array([[1, 0, 0],[0, math.cos(pitch), -math.sin(pitch)],[0, math.sin(pitch), math.cos(pitch)]])
+        RotY=np.array([[math.cos(roll), 0, math.sin(roll)],[0, 1, 0],[-math.sin(roll), 0, math.cos(roll)]])
+        RotZ=np.array([[math.cos(yaw), -math.sin(yaw), 0],[math.sin(yaw), math.cos(yaw), 0],[0, 0, 1]])
+        Rot = RotX.dot(RotY.dot(RotZ))
 
-        self.fig.savefig('to.png')
-        image = cv2.imread('to.png')
+        return Rot
 
-        return image
-
-
-    def plotCoordSys(self, origin, rot):
+    def plotCoordSys(self, origin, rot, euler):
         bases = np.array([[1, 0, 0],[0, 1, 0], [0, 0, 1]])
         bases = bases * self.markerEdge
-        R = cv2.Rodrigues(rot)[0]
-        bases=R.dot(bases)
+        if not euler:
+            R = cv2.Rodrigues(rot)[0]
+        else:
+            R = self.RotateXYZ(rot[0][0], rot[0][1], rot[0][2])
+        
+        bases = R.dot(bases)
 
         ox = origin[0][0]
         oy = origin[0][1]
@@ -282,5 +331,6 @@ class Plotting():
         return coord_arrow_X, coord_arrow_Y, coord_arrow_Z
 
 
-plotter = Plotting(1.100)
-plotter.plotout('results/movement_20191025_175457.npz', False)
+plotter = Plotting(.11)
+#plotter.plotout('results/movement_20191031_191207.npz', True)
+plotter.plotRT('results/useful/movement_20191103_115350.npz')
