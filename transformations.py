@@ -5,7 +5,7 @@ import cv2
 from scipy.spatial.transform import Rotation
 
 # Calculate transformation matrices and average them
-def getTransformations(tvec_m, tvec_n, rvec_m, rvec_n, tvec_orig_m, tvec_orig_n, rvec_orig_m,
+def getTransformations(n_id, tvec_m, tvec_n, rvec_m, rvec_n, tvec_orig_m, tvec_orig_n, rvec_orig_m,
                        rvec_orig_n, dRot_m, dRot_n, allow_use, ALLOW_LIMIT, tvec_max_n, tvec_min_n):
     if allow_use < ALLOW_LIMIT:
         tvec_m = np.transpose(tvec_m) # tvec of 'm' marker
@@ -38,20 +38,21 @@ def getTransformations(tvec_m, tvec_n, rvec_m, rvec_n, tvec_orig_m, tvec_orig_n,
         allow_use += 1
     
     if allow_use == ALLOW_LIMIT:
-        tvec_mm = tvec_orig_m + dRot_m.dot(-R_m.T.dot(tvec_m)) # camera pose in 'm' marker's coordinate system
-        tvec_nn = -R_n.T.dot(tvec_n) # camera pose in 'n' marker's coordinate system
+        #tvec_mm = tvec_orig_m + dRot_m.dot(-R_m.T.dot(tvec_m)) # camera pose in 'm' marker's coordinate system
+        #tvec_nn = -R_n.T.dot(tvec_n) # camera pose in 'n' marker's coordinate system
         tvec_orig_n = tvec_orig_n - tvec_max_n - tvec_min_n
         tvec_orig_n = tvec_orig_n/(ALLOW_LIMIT-2) # the origin of 'n' in global
         dRot_n = dRot_n/ALLOW_LIMIT # rotation matrix from 'n' to global
-        tvec_nm = tvec_orig_n + dRot_n.dot(tvec_nn) # camera pose from 'n' to global
+        #tvec_nm = tvec_orig_n + dRot_n.dot(tvec_nn) # camera pose from 'n' to global
 
         rvec_orig_n = rotationMatrixToRotationVector(-dRot_n.T)
         # print("rvec_orig_n:")
         # print(rotationVectorToEulerAngles(rvec_orig_n)*180/math.pi)
-        print("tvec_mm:")
-        print(tvec_mm)
-        print("tvec_nm:")
-        print(tvec_nm)
+        # print("tvec_mm:")
+        # print(tvec_mm)
+        # print("tvec_nm:")
+        # print(tvec_nm)
+        print("Marker "+str(n_id)+" transformations calculated")
     
     tvec_orig_n = np.transpose(tvec_orig_n)
     #rvec_orig_n = np.transpose(rvec_orig_n)

@@ -6,7 +6,6 @@ import numpy as np
 import time
 import queue
 import threading
-from collections import deque
 from cam_class import Camera
 from timeit import default_timer as timer
 from video_writer import WriteVideo
@@ -53,6 +52,7 @@ class FrontEnd(object):
         self.battery = 0
         self.angles = [0., 0., 0., 0.]
         self.dir_queue=queue.Queue()
+        self.dir_queue.queue.clear()
 
         self.send_rc_control = False
         self.calibrate = False
@@ -63,6 +63,7 @@ class FrontEnd(object):
 
         # Creating video queue
         self.video_queue = queue.Queue()
+        self.video_queue.queue.clear()
         self.END_event = threading.Event()
         self.END_event.clear()
         self.videoWrite = WriteVideo(self.video_queue, FPS, self.END_event)
@@ -112,8 +113,8 @@ class FrontEnd(object):
                 pitch, roll, yaw, tof, bat = self.data_queue.get()
                 self.data_queue.queue.clear()
                 self.battery = bat
-                #print(tof)
-                self.angles_tof = [pitch, roll, yaw, tof/100]
+                #print("tof"+str(tof))
+                self.angles_tof = [pitch, roll, yaw, tof]
                 #print([pitch, roll, yaw, tof])
 
             if self.calibrate:

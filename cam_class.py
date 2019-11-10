@@ -195,7 +195,10 @@ class Camera():
                     frame = self.drawCenter(frame, id_list, corners, w, h)
                     self.navigateToMarker(id_list, tvecs, rvecs)
                 else:
-                    self.dir_queue.put([0, 0, 0, self.speed*2])
+                    if self.TargetPos[0][3] < -5 or self.TargetPos[0][3] == 5:
+                        self.dir_queue.put([0, 0, 0, self.speed*2])
+                    else:
+                        self.dir_queue.put([0, 0, 0, -self.speed*2])
                     for ID in id_list:
                         if ID not in self.beenThere:
                             self.TargetID = ID
@@ -231,7 +234,7 @@ class Camera():
     # Look for origin marker and set directions
     def navigateToMarker(self, seen_id_list, tvecs, rvecs):
         if self.TargetID not in seen_id_list:
-            if timer()-self.t_lost > 2:
+            if timer()-self.t_lost > 1:
                 if self.last_marker_pos >= 0:
                     self.dir_queue.put([0, 0, 0, self.speed*2])
                 else:
@@ -264,12 +267,13 @@ class Camera():
             err_z = self.TargetPos[0][1] - tvec[0][1]
             directions[2] = A*self.vz_pid.control(err_z)
 
-            if abs(err_x) < ERROR and abs(err_y) < ERROR and abs(err_z) < 0.1 and abs(err_yaw) < 5:
+            if abs(err_x) < ERROR and abs(err_y) < ERROR and abs(err_z) < ERROR and abs(err_yaw) < 5:
                 if timer()-self.t_inPos > 1:
                     if self.TargetID == 1:
                         self.getFirst = False
                         print("Positioned to origin, begin navigation")
-                        self.resetCoords = True
+                        self.seenMarkers.nullCoords()
+                        # self.resetCoords = True
                         self.getCoords_event.set()
                     if self.TargetID == 50:
                         print("End of flight")
@@ -277,7 +281,8 @@ class Camera():
                         self.resetNavigators()
                         self.navigate_event.clear()
                         self.END_event.set()
-                    if not self.getFirst:
+                    
+                    if not self.getFirst and not self.END_event.is_set():
                         self.beenThere.append(self.TargetID)
                         self.changeObjective(seen_id_list, tvecs)
                         if not self.findNew:

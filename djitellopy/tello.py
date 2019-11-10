@@ -140,6 +140,7 @@ class Tello:
                 tof = int(self.state[2][self.state[8].index(":")+1:])
                 # battery percentage
                 bat = int(self.state[10][self.state[10].index(":")+1:])
+                #print("tello "+str([pitch, roll, yaw, tof, bat]))
                 self.data_queue.put([pitch, roll, yaw, tof, bat])
             except Exception as e:
                 self.LOGGER.error(e)

@@ -62,19 +62,23 @@ class Plotting():
         fig = plt.figure()
         self.ax = fig.add_subplot(111, projection='3d')
 
+        xo = orientation[0][0]*t_origin[:,0,orientation[1][0]]
+        yo = orientation[0][1]*t_origin[:,0,orientation[1][1]]
+        zo = orientation[0][2]*t_origin[:,0,orientation[1][2]]
+        rxo = orientation[0][0]*r_origin[:,0,orientation[1][0]]
+        ryo = orientation[0][1]*r_origin[:,0,orientation[1][1]]
+        rzo = orientation[0][2]*r_origin[:,0,orientation[1][2]]
+
+        maxval=max((max(xo),max(yo),max(zo)))
+        minval=min((min(xo),min(yo),min(zo)))
+
         # add the marker origins
         for i in range(t_origin.shape[0]):
-            xp = orientation[0][0]*t_origin[i][0][orientation[1][0]]
-            yp = orientation[0][1]*t_origin[i][0][orientation[1][1]]
-            zp = orientation[0][2]*t_origin[i][0][orientation[1][2]]
-            rxp = orientation[0][0]*r_origin[i][0][orientation[1][0]]
-            ryp = orientation[0][1]*r_origin[i][0][orientation[1][1]]
-            rzp = orientation[0][2]*r_origin[i][0][orientation[1][2]]
             if i == 0:
                 # print(t_origin[i])
-                bx, by, bz = self.plotCoordSys(np.array([[xp,yp,zp]]), np.array([[0.,0.,0.]]), False)
+                bx, by, bz = self.plotCoordSys(np.array([[xo[i],yo[i],zo[i]]]), np.array([[0.,0.,0.]]), False)
             else:
-                bx, by, bz = self.plotCoordSys(np.array([[xp,yp,zp]]), np.array([[rxp,ryp,rzp]]), False)
+                bx, by, bz = self.plotCoordSys(np.array([[xo[i],yo[i],zo[i]]]), np.array([[rxo[i],ryo[i],rzo[i]]]), False)
             self.ax.add_artist(bx)
             self.ax.add_artist(by)
             self.ax.add_artist(bz)
@@ -88,12 +92,12 @@ class Plotting():
         yp = np.r_[yp[okay], yp[-1]]
         zp = np.r_[zp[okay], zp[-1]]
 
-        maxval=max((max(xp),max(yp),max(zp)))
-        minval=min((min(xp),min(yp),min(zp)))
+        maxval=max((max(xp),max(yp),max(zp), maxval))
+        minval=min((min(xp),min(yp),min(zp), minval))
 
-        self.ax.set_xlim([minval,maxval])
-        self.ax.set_ylim([minval,maxval])
-        self.ax.set_zlim([minval,maxval])
+        self.ax.set_xlim([min((min(xo),min(xp))),max((max(xo),max(xp)))])
+        self.ax.set_ylim([min((min(yo),min(yp))),max((max(yo),max(yp)))])
+        self.ax.set_zlim([min((min(zo),min(zp))),max((max(zo),max(zp)))])
 
         if use_avg:
             xp_new = np.array([[0.]])
@@ -127,7 +131,7 @@ class Plotting():
             zp = zp_new[0][1:-1]
 
         try:
-            tck, _ = interpolate.splprep([xp, yp, zp], s=0.001)
+            tck, _ = interpolate.splprep([xp, yp, zp], s=1)
             # x_knots, y_knots, z_knots = interpolate.splev(tck[0], tck)
             u_fine = np.linspace(0,1,tvec.shape[0])
             x_fine, y_fine, z_fine = interpolate.splev(u_fine, tck)
@@ -136,9 +140,9 @@ class Plotting():
         except:
             print("no spline")
 
-        self.ax.set_xlim([minval,maxval])
-        self.ax.set_ylim([minval,maxval])
-        self.ax.set_zlim([minval,maxval])
+        # self.ax.set_xlim([minval,maxval])
+        # self.ax.set_ylim([minval,maxval])
+        # self.ax.set_zlim([minval,maxval])
         self.ax.set_xlabel("X [m]")
         self.ax.set_ylabel("Y [m]")
         self.ax.set_zlabel("Z [m]")
@@ -218,6 +222,7 @@ class Plotting():
     
     def plotRT(self, file):
         with np.load(file) as X:
+            t = X['t']
             tvec = X['tvecs']
             rvec = X['rvecs']
             t_origin = X['t_origin']
@@ -228,19 +233,23 @@ class Plotting():
         fig = plt.figure()
         self.ax = fig.add_subplot(111, projection='3d')
 
+        xo = orientation[0][0]*t_origin[:,0,orientation[1][0]]
+        yo = orientation[0][1]*t_origin[:,0,orientation[1][1]]
+        zo = orientation[0][2]*t_origin[:,0,orientation[1][2]]
+        rxo = orientation[0][0]*r_origin[:,0,orientation[1][0]]
+        ryo = orientation[0][1]*r_origin[:,0,orientation[1][1]]
+        rzo = orientation[0][2]*r_origin[:,0,orientation[1][2]]
+
+        maxval=max((max(xo),max(yo),max(zo)))
+        minval=min((min(xo),min(yo),min(zo)))
+
         # add the marker origins
         for i in range(t_origin.shape[0]):
-            xp = orientation[0][0]*t_origin[i][0][orientation[1][0]]
-            yp = orientation[0][1]*t_origin[i][0][orientation[1][1]]
-            zp = orientation[0][2]*t_origin[i][0][orientation[1][2]]
-            rxp = orientation[0][0]*r_origin[i][0][orientation[1][0]]
-            ryp = orientation[0][1]*r_origin[i][0][orientation[1][1]]
-            rzp = orientation[0][2]*r_origin[i][0][orientation[1][2]]
             if i == 0:
                 # print(t_origin[i])
-                bx, by, bz = self.plotCoordSys(np.array([[xp,yp,zp]]), np.array([[0.,0.,0.]]), False)
+                bx, by, bz = self.plotCoordSys(np.array([[xo[i],yo[i],zo[i]]]), np.array([[0.,0.,0.]]), False)
             else:
-                bx, by, bz = self.plotCoordSys(np.array([[xp,yp,zp]]), np.array([[rxp,ryp,rzp]]), False)
+                bx, by, bz = self.plotCoordSys(np.array([[xo[i],yo[i],zo[i]]]), np.array([[rxo[i],ryo[i],rzo[i]]]), False)
             self.ax.add_artist(bx)
             self.ax.add_artist(by)
             self.ax.add_artist(bz)
@@ -254,14 +263,17 @@ class Plotting():
         yp = np.r_[yp[okay], yp[-1]]
         zp = np.r_[zp[okay], zp[-1]]
 
-        maxval=max((max(xp),max(yp),max(zp)))
-        minval=min((min(xp),min(yp),min(zp)))
+        maxval=max((max(xp),max(yp),max(zp), maxval))
+        minval=min((min(xp),min(yp),min(zp), minval))
 
-        self.ax.set_xlim([minval,maxval])
-        self.ax.set_ylim([minval,maxval])
-        self.ax.set_zlim([minval,maxval])
+        self.ax.set_xlim([min((min(xo),min(xp))),max((max(xo),max(xp)))])
+        self.ax.set_ylim([min((min(yo),min(yp))),max((max(yo),max(yp)))])
+        self.ax.set_zlim([min((min(zo),min(zp))),max((max(zo),max(zp)))])
 
-        self.markerEdge = self.markerEdge*10
+        self.markerEdge = self.markerEdge*5
+        xp_new = np.array([[0.]])
+        yp_new = np.array([[0.]])
+        zp_new = np.array([[0.]])
 
         bx_prev, by_prev, bz_prev = self.plotCoordSys(np.array([[0, 0, 0]]), np.array([[0.,0.,0.]]), False)
         i = 0
@@ -287,9 +299,30 @@ class Plotting():
                 bx_prev = bx
                 by_prev = by
                 bz_prev = bz
+
+                if i == 0:
+                    xt, yt, zt = 0, 0, 0            
+                if (((i+1) % AVG_MAX) != 0):
+                    xt += xp[i]
+                    yt += yp[i]
+                    zt += zp[i]
+                else:
+                    xt = (xt + xp[i])/AVG_MAX
+                    yt = (yt + yp[i])/AVG_MAX
+                    zt = (zt + zp[i])/AVG_MAX
+                    xp_new=np.append(xp_new, np.array([[xt]]), axis=1)
+                    yp_new=np.append(yp_new, np.array([[yt]]), axis=1)
+                    zp_new=np.append(zp_new, np.array([[zt]]), axis=1)
+
+                    self.ax.plot([xt], [yt], [zt], 'm.')
+
+                    xt, yt, zt = 0, 0, 0
+
+                i += 1
+                plt.pause(t[i]-t[i-1])
             else:
                 try:
-                    tck, _ = interpolate.splprep([xp, yp, zp], s=0.001)
+                    tck, _ = interpolate.splprep([xp_new, yp_new, zp_new], s=1)
                     # x_knots, y_knots, z_knots = interpolate.splev(tck[0], tck)
                     u_fine = np.linspace(0,1,tvec.shape[0])
                     x_fine, y_fine, z_fine = interpolate.splev(u_fine, tck)
@@ -297,9 +330,9 @@ class Plotting():
                     self.ax.plot(x_fine, y_fine, z_fine, 'g')
                 except:
                     print("no spline")
-
-            i += 1
-            plt.pause(0.04)
+                
+                plt.pause(20)
+                break  
 
     def RotateXYZ(self, pitch, roll, yaw):
         pitch, roll, yaw = [pitch*math.pi/180, roll*math.pi/180, yaw*math.pi/180]
@@ -332,5 +365,5 @@ class Plotting():
 
 
 plotter = Plotting(.11)
-#plotter.plotout('results/movement_20191031_191207.npz', True)
-plotter.plotRT('results/useful/movement_20191103_115350.npz')
+plotter.plotout('results/movement_20191108_163215.npz', False)
+#plotter.plotRT('results/movement_20191108_163215.npz')
