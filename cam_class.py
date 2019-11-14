@@ -195,7 +195,7 @@ class Camera():
                     frame = self.drawCenter(frame, id_list, corners, w, h)
                     self.navigateToMarker(id_list, tvecs, rvecs)
                 else:
-                    if self.TargetPos[0][3] < -5 or self.TargetPos[0][3] == 5:
+                    if self.TargetPos[0][3] <= 0 and self.TargetPos[0][3] != -5:
                         self.dir_queue.put([0, 0, 0, self.speed*2])
                     else:
                         self.dir_queue.put([0, 0, 0, -self.speed*2])

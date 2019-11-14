@@ -61,13 +61,6 @@ def getTransformations(n_id, tvec_m, tvec_n, rvec_m, rvec_n, tvec_orig_m, tvec_o
 
 # Calculate position data from stored values and current values
 def calculatePos(tvec, rvec, tvec_orig, dRot):
-    # tvec = np.transpose(tvec)
-    # rvec = np.transpose(rvec)
-    # R = cv2.Rodrigues(rvec)[0]
-    # tvec = -R.T.dot(tvec)
-    # rvec = -R.T.dot(rvec)
-    # tvec = np.transpose(tvec)
-    # rvec = np.transpose(rvec)
     tvec = np.transpose(tvec)
     tvec_orig = np.transpose(tvec_orig)
     R = cv2.Rodrigues(rvec)[0]
@@ -75,21 +68,6 @@ def calculatePos(tvec, rvec, tvec_orig, dRot):
     tvec = tvec_orig + dRot.dot(tvec)
     tvec = np.transpose(tvec)
     return tvec
-
-# # Calculate position data from stored values and current values
-# def calculateAng(rvec, rvec_orig, dRot):
-#     # rvec = np.transpose(rvec)
-#     # print(rvec)
-#     # rvec_orig = np.transpose(rvec_orig)
-#     # print(rvec_orig)
-#     # R = cv2.Rodrigues(rvec)[0]
-#     # rvec = -R.T.dot(rvec)
-#     # rvec = rvec_orig - dRot.dot(rvec)
-#     # print("rvec")
-#     # print(rvec)
-#     # rvec = np.transpose(rvec)
-
-#     return rvec
 
 def TranslationInMarker(rvec, tvec):
     tvec = np.transpose(tvec)

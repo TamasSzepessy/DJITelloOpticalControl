@@ -10,10 +10,12 @@ from scipy.spatial.transform import Rotation
 import math
 import cv2
 import time
+from pykalman import KalmanFilter
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 AVG_MAX = 12
+SMOOTHER = 5000
 
 class Arrow3D(FancyArrowPatch):
     def __init__(self, xs, ys, zs, *args, **kwargs):
@@ -29,197 +31,109 @@ class Arrow3D(FancyArrowPatch):
 class Plotting():
     def __init__(self, MARKER_SIDE):
         self.markerEdge = MARKER_SIDE
-        # self.fig = Figure()
-        # self.canvas = FigureCanvas(self.fig)
-        
-        #plt.show()
-        #self.fig.show()
+        fig = plt.figure(1)
+        self.ax = fig.add_subplot(111, projection='3d')
 
-        # self.bx_prev, self.by_prev, self.bz_prev = self.plotCoordSys(np.array([[0, 0, 0]]), np.array([[0.,0.,0.]]), True)
-
-    # def RotateXYZ(self, pitch, roll, yaw, x, y, z):
-    #     rotx=np.array([[1, 0, 0],[0, math.cos(pitch), -math.sin(pitch)],[0, math.sin(pitch), math.cos(pitch)]])
-    #     roty=np.array([[math.cos(roll), 0, math.sin(roll)],[0, 1, 0],[-math.sin(roll), 0, math.cos(roll)]])
-    #     rotz=np.array([[math.cos(pitch), -math.sin(pitch), 0],[math.sin(pitch), math.cos(pitch), 0],[0, 0, 1]])
-    #     rot=np.matmul(roty,rotz)
-    #     rot=np.matmul(rotx,rot)
-    #     temp = np.matmul(np.column_stack((x,y,z)),rot)
-    #     xr, yr, zr = temp[:,0], temp[:,1], temp[:,2]
-
-    #     return xr, yr, zr
-
-    def Average(self, x, y, z, i):
-        pass
-
-    def plotout(self, file, use_avg):
+    def plotout(self, file, showAngles, showComponents):
         with np.load(file) as X:
             tvec = X['tvecs']
             rvec = X['rvecs']
             t_origin = X['t_origin']
             r_origin = X['t_origin']
             orientation = X['orientation']
+            t = X['t']
 
-        fig = plt.figure()
-        self.ax = fig.add_subplot(111, projection='3d')
-
-        xo = orientation[0][0]*t_origin[:,0,orientation[1][0]]
-        yo = orientation[0][1]*t_origin[:,0,orientation[1][1]]
-        zo = orientation[0][2]*t_origin[:,0,orientation[1][2]]
-        rxo = orientation[0][0]*r_origin[:,0,orientation[1][0]]
-        ryo = orientation[0][1]*r_origin[:,0,orientation[1][1]]
-        rzo = orientation[0][2]*r_origin[:,0,orientation[1][2]]
-
-        maxval=max((max(xo),max(yo),max(zo)))
-        minval=min((min(xo),min(yo),min(zo)))
-
-        # add the marker origins
-        for i in range(t_origin.shape[0]):
-            if i == 0:
-                # print(t_origin[i])
-                bx, by, bz = self.plotCoordSys(np.array([[xo[i],yo[i],zo[i]]]), np.array([[0.,0.,0.]]), False)
-            else:
-                bx, by, bz = self.plotCoordSys(np.array([[xo[i],yo[i],zo[i]]]), np.array([[rxo[i],ryo[i],rzo[i]]]), False)
-            self.ax.add_artist(bx)
-            self.ax.add_artist(by)
-            self.ax.add_artist(bz)
+        m = self.plotMarkers(t_origin, r_origin, orientation, 10)
 
         xp = orientation[0][0]*tvec[:,orientation[1][0]]
         yp = orientation[0][1]*tvec[:,orientation[1][1]]
         zp = orientation[0][2]*tvec[:,orientation[1][2]]
+
+        self.ax.set_xlim([min((m[0],min(xp))),max((m[1],max(xp)))])
+        self.ax.set_ylim([min((m[2],min(yp))),max((m[3],max(yp)))])
+        self.ax.set_zlim([min((m[4],min(zp))),max((m[5],max(zp)))])
+
+        measurements = tvec
+
+        avg = np.zeros((1,3))
+        minv, maxv = 10000, 0
+        for i in range(AVG_MAX):
+            avg += measurements[i]
+            if np.linalg.norm(measurements[i]) > np.linalg.norm(maxv):
+                maxv = measurements[i]
+            if np.linalg.norm(measurements[i]) < np.linalg.norm(minv):
+                minv = measurements[i]
         
-        okay = np.where(np.abs(np.diff(xp)) + np.abs(np.diff(yp)) + np.abs(np.diff(zp)) > 0)
-        xp = np.r_[xp[okay], xp[-1]]
-        yp = np.r_[yp[okay], yp[-1]]
-        zp = np.r_[zp[okay], zp[-1]]
+        avg=(avg-maxv-minv)/(AVG_MAX-2)
 
-        maxval=max((max(xp),max(yp),max(zp), maxval))
-        minval=min((min(xp),min(yp),min(zp), minval))
+        initial_state_mean = [avg[0, 0], 0, avg[0, 1], 0, avg[0, 2], 0]
+        dt = 0.04
+        transition_matrix = [[1, dt, 0, 0, 0, 0],
+                             [0, 1, 0, 0, 0, 0],
+                             [0, 0, 1, dt, 0, 0],
+                             [0, 0, 0, 1, 0, 0],
+                             [0, 0, 0, 0, 1, dt],
+                             [0, 0, 0, 0, 0, 1]]
 
-        self.ax.set_xlim([min((min(xo),min(xp))),max((max(xo),max(xp)))])
-        self.ax.set_ylim([min((min(yo),min(yp))),max((max(yo),max(yp)))])
-        self.ax.set_zlim([min((min(zo),min(zp))),max((max(zo),max(zp)))])
+        observation_matrix = [[1, 0, 0, 0, 0, 0],
+                              [0, 0, 1, 0, 0, 0],
+                              [0, 0, 0, 0, 1, 0]]
 
-        if use_avg:
-            xp_new = np.array([[0.]])
-            yp_new = np.array([[0.]])
-            zp_new = np.array([[0.]])
+        kf1 = KalmanFilter(transition_matrices = transition_matrix,
+                        observation_matrices = observation_matrix,
+                        initial_state_mean = initial_state_mean)
+
+        kf1 = kf1.em(measurements, n_iter=5)
+        (smoothed_state_means, smoothed_state_covariances) = kf1.smooth(measurements)
+
+        print("kf1 done")
+
+        kf2 = KalmanFilter(transition_matrices = transition_matrix,
+                        observation_matrices = observation_matrix,
+                        initial_state_mean = initial_state_mean,
+                        observation_covariance = SMOOTHER*kf1.observation_covariance,
+                  em_vars=['transition_covariance', 'initial_state_covariance'])
+
+        kf2 = kf2.em(measurements, n_iter=5)
+        (smoothed_state_means, smoothed_state_covariances) = kf2.smooth(measurements)
+
+        print("kf2 done")
+
+        if showComponents:
+            times = t
+            plt.figure(2)
+            plt.xlabel("t [s]")
+            plt.ylabel("X [m]")
+            plt.plot(times, measurements[:, 0], 'r-', times, smoothed_state_means[:, 0], 'b--')
+            plt.figure(3)
+            plt.xlabel("t [s]")
+            plt.ylabel("Y [m]")
+            plt.plot(times, measurements[:, 1], 'g-', times, smoothed_state_means[:, 2], 'r--')
+            plt.figure(4)
+            plt.xlabel("t [s]")
+            plt.ylabel("Z [m]")
+            plt.plot(times, measurements[:, 2], 'b-', times, smoothed_state_means[:, 4], 'r--')
+
+        xp = smoothed_state_means[:, 0]
+        yp = smoothed_state_means[:, 2]
+        zp = smoothed_state_means[:, 4]
+
+        if showAngles:
             for i in range(len(xp)):
-                if i == 0:
-                    xt = 0
-                    yt = 0
-                    zt = 0
-                
-                if (((i+1) % AVG_MAX) != 0):
-                    xt += xp[i]
-                    yt += yp[i]
-                    zt += zp[i]
-                else:
-                    xt = (xt + xp[i])/AVG_MAX
-                    yt = (yt + yp[i])/AVG_MAX
-                    zt = (zt + zp[i])/AVG_MAX
-                    
-                    xp_new=np.append(xp_new, np.array([[xt]]), axis=1)
-                    yp_new=np.append(yp_new, np.array([[yt]]), axis=1)
-                    zp_new=np.append(zp_new, np.array([[zt]]), axis=1)
+                if ((i % (AVG_MAX*2)) == 0):
+                    rvec_act = np.array([[float(rvec[i][0]),float(rvec[i][1]),float(rvec[i][2])]])
+                    bx, by, bz = self.plotCoordSys(np.array([[xp[i],yp[i],zp[i]]]), rvec_act, True, 1)
+                    self.ax.add_artist(bx)
+                    self.ax.add_artist(by)
+                    self.ax.add_artist(bz)
 
-                    xt = 0
-                    yt = 0
-                    zt = 0
-            
-            xp = xp_new[0][1:-1]
-            yp = yp_new[0][1:-1]
-            zp = zp_new[0][1:-1]
-
-        try:
-            tck, _ = interpolate.splprep([xp, yp, zp], s=1)
-            # x_knots, y_knots, z_knots = interpolate.splev(tck[0], tck)
-            u_fine = np.linspace(0,1,tvec.shape[0])
-            x_fine, y_fine, z_fine = interpolate.splev(u_fine, tck)
-            # ax.plot(x_knots, y_knots, z_knots, 'go')
-            self.ax.plot(x_fine, y_fine, z_fine, 'g')
-        except:
-            print("no spline")
-
-        # self.ax.set_xlim([minval,maxval])
-        # self.ax.set_ylim([minval,maxval])
-        # self.ax.set_zlim([minval,maxval])
         self.ax.set_xlabel("X [m]")
         self.ax.set_ylabel("Y [m]")
         self.ax.set_zlabel("Z [m]")
 
-        self.ax.plot(xp, yp, zp, 'r*')
+        self.ax.plot(xp, yp, zp, 'k--')
         plt.show()
 
-        #bx_prev, by_prev, bz_prev = self.plotCoordSys(np.array([[0, 0, 0]]), np.array([[0.,0.,0.]]))
-        '''i = 0
-        while(True):
-            # if not self.pos_queue.empty():
-            #     q=self.pos_queue.get()
-
-            try:
-                bx_prev.remove()
-                by_prev.remove()
-                bz_prev.remove()
-            except:
-                pass
-
-            # maxval=max((max(xp),max(yp),max(zp)))
-            # minval=min((min(xp),min(yp),min(zp)))
-
-            # try:
-            #     tck, _ = interpolate.splprep([xp, yp, zp], s=1)
-            #     # x_knots, y_knots, z_knots = interpolate.splev(tck[0], tck)
-            #     u_fine = np.linspace(0,1,tvec.shape[0])
-            #     x_fine, y_fine, z_fine = interpolate.splev(u_fine, tck)
-            #     # ax.plot(x_knots, y_knots, z_knots, 'go')
-            #     self.ax.plot(x_fine, y_fine, z_fine, 'g')
-            # except:
-            #     pass
-
-            # self.ax.set_xlim([minval,maxval])
-            # self.ax.set_ylim([minval,maxval])
-            # self.ax.set_zlim([minval,maxval])
-            # self.ax.set_xlabel("X [m]")
-            # self.ax.set_ylabel("Y [m]")
-            # self.ax.set_zlabel("Z [m]")
-
-            # self.ax.plot(xp, yp, zp, 'r*')
-            # # self.ax.plot([minval,maxval],[0,0],[0,0],'k',linewidth=0.5)
-            # # self.ax.plot([0,0],[minval,maxval],[0,0],'k',linewidth=0.5)
-            # # self.ax.plot([0,0],[0,0],[minval,maxval],'k',linewidth=0.5)
-            if i < len(xp):
-                # self.ax.set_xlim([xp[i]-0.2, xp[i]+0.2])
-                # self.ax.set_ylim([yp[i]-0.2, yp[i]+0.2])
-                # self.ax.set_zlim([zp[i]-0.2, zp[i]+0.2])
-
-                bx, by, bz = self.plotCoordSys(np.array([[xp[i],yp[i],zp[i]]]), np.array([[0.,0.,0.]]))
-                self.ax.add_artist(bx)
-                self.ax.add_artist(by)
-                self.ax.add_artist(bz)
-
-                bx_prev = bx
-                by_prev = by
-                bz_prev = bz
-
-                # self.canvas.draw()
-                # image = np.frombuffer(self.canvas.tostring_rgb(), dtype='uint8')
-                self.fig.savefig('to.png')
-
-                image = cv2.imread('to.png')
-
-                cv2.imshow('img', image)
-                if cv2.waitKey(1) == 27:
-                    break
-            else:
-                break
-
-            i += 1
-
-            plt.pause(0.04)
-            
-            # self.fig.canvas.flush_events()   # update the plot and take care of window events (like resizing etc.)
-            # time.sleep(0.04)               # wait for next loop iteration'''
-    
     def plotRT(self, file):
         with np.load(file) as X:
             t = X['t']
@@ -334,6 +248,27 @@ class Plotting():
                 plt.pause(20)
                 break  
 
+    def plotMarkers(self, t_origin, r_origin, orientation, MUT):
+        xo = orientation[0][0]*t_origin[:,0,orientation[1][0]]
+        yo = orientation[0][1]*t_origin[:,0,orientation[1][1]]
+        zo = orientation[0][2]*t_origin[:,0,orientation[1][2]]
+        rxo = orientation[0][0]*r_origin[:,0,orientation[1][0]]
+        ryo = orientation[0][1]*r_origin[:,0,orientation[1][1]]
+        rzo = orientation[0][2]*r_origin[:,0,orientation[1][2]]
+
+        # add the marker origins
+        for i in range(t_origin.shape[0]):
+            if i == 0:
+                # print(t_origin[i])
+                bx, by, bz = self.plotCoordSys(np.array([[xo[i],yo[i],zo[i]]]), np.array([[0.,0.,0.]]), False, MUT)
+            else:
+                bx, by, bz = self.plotCoordSys(np.array([[xo[i],yo[i],zo[i]]]), np.array([[rxo[i],ryo[i],rzo[i]]]), False, MUT)
+            self.ax.add_artist(bx)
+            self.ax.add_artist(by)
+            self.ax.add_artist(bz)
+
+        return [min(xo), max(xo), min(yo), max(yo), min(zo), max(zo)]
+
     def RotateXYZ(self, pitch, roll, yaw):
         pitch, roll, yaw = [pitch*math.pi/180, roll*math.pi/180, yaw*math.pi/180]
         RotX=np.array([[1, 0, 0],[0, math.cos(pitch), -math.sin(pitch)],[0, math.sin(pitch), math.cos(pitch)]])
@@ -343,7 +278,7 @@ class Plotting():
 
         return Rot
 
-    def plotCoordSys(self, origin, rot, euler):
+    def plotCoordSys(self, origin, rot, euler, MUT):
         bases = np.array([[1, 0, 0],[0, 1, 0], [0, 0, 1]])
         bases = bases * self.markerEdge
         if not euler:
@@ -357,13 +292,13 @@ class Plotting():
         oy = origin[0][1]
         oz = origin[0][2]
         
-        coord_arrow_X = Arrow3D((ox,ox+bases[0][0]),(oy,oy+bases[1][0]),(oz,oz+bases[2][0]), mutation_scale=10, lw=1, arrowstyle="-|>", color="r")
-        coord_arrow_Y = Arrow3D((ox,ox+bases[0][1]),(oy,oy+bases[1][1]),(oz,oz+bases[2][1]), mutation_scale=10, lw=1, arrowstyle="-|>", color="g")
-        coord_arrow_Z = Arrow3D((ox,ox+bases[0][2]),(oy,oy+bases[1][2]),(oz,oz+bases[2][2]), mutation_scale=10, lw=1, arrowstyle="-|>", color="b")
+        coord_arrow_X = Arrow3D((ox,ox+bases[0][0]),(oy,oy+bases[1][0]),(oz,oz+bases[2][0]), mutation_scale=MUT, lw=1, arrowstyle="-|>", color="r")
+        coord_arrow_Y = Arrow3D((ox,ox+bases[0][1]),(oy,oy+bases[1][1]),(oz,oz+bases[2][1]), mutation_scale=MUT, lw=1, arrowstyle="-|>", color="g")
+        coord_arrow_Z = Arrow3D((ox,ox+bases[0][2]),(oy,oy+bases[1][2]),(oz,oz+bases[2][2]), mutation_scale=MUT, lw=1, arrowstyle="-|>", color="b")
 
         return coord_arrow_X, coord_arrow_Y, coord_arrow_Z
 
 
 plotter = Plotting(.11)
-plotter.plotout('results/movement_20191108_163215.npz', False)
-#plotter.plotRT('results/movement_20191108_163215.npz')
+plotter.plotout('results/Mocap/movement_20191111_115459.npz', True, False)
+#plotter.plotRT('results/Mocap/movement_20191111_112626.npz')
