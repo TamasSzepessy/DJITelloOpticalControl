@@ -5,17 +5,29 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.patches import FancyArrowPatch
 from mpl_toolkits.mplot3d import proj3d
-from scipy import interpolate
+from matplotlib.animation import FuncAnimation
 from scipy.spatial.transform import Rotation
 import math
 import cv2
 import time
+import csv
 from pykalman import KalmanFilter
-from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-from matplotlib.figure import Figure
+
+SHOW_ANG = False
+SHOW_COMP = False
+ANIM = False
 
 AVG_MAX = 12
 SMOOTHER = 5000
+SET_EQUAL = False
+
+FILE = 'flight_03'
+ARUCO_PATH = 'results/MoCap/'+FILE+'.npz'
+MOCAP_PATH = 'results/MoCap/'+FILE+'.csv'
+START = 1000
+STEP = 4
+
+SHOW_START = 0
 
 class Arrow3D(FancyArrowPatch):
     def __init__(self, xs, ys, zs, *args, **kwargs):
@@ -31,29 +43,150 @@ class Arrow3D(FancyArrowPatch):
 class Plotting():
     def __init__(self, MARKER_SIDE):
         self.markerEdge = MARKER_SIDE
-        fig = plt.figure(1)
-        self.ax = fig.add_subplot(111, projection='3d')
+        self.fig = plt.figure(1)
+        if ANIM:
+            self.ax_AR = self.fig.add_subplot(111, projection='3d')
+        else:
+            self.ax_AR = self.fig.add_subplot(121, projection='3d')
+            self.ax_MC = self.fig.add_subplot(122, projection='3d')
+        
+        self.bx_prev, self.by_prev, self.bz_prev = self.plotCoordSys(np.array([[0, 0, 0]]), np.array([[0.,0.,0.]]), False, 1)
+        self.index = 0
 
-    def plotout(self, file, showAngles, showComponents):
-        with np.load(file) as X:
+    def animate(self, xp, yp, zp, rvec):        
+        self.markerEdge = self.markerEdge*5
+        self.xt, self.yt, self.zt = 0, 0, 0
+        def update(frame):
+            if frame is None: return
+            else:
+                if self.index < len(xp):
+                    try:
+                        self.bx_prev.remove()
+                        self.by_prev.remove()
+                        self.bz_prev.remove()
+                    except:
+                        pass
+                    rvec_act = np.array([[float(rvec[self.index][0]),float(rvec[self.index][1]),float(rvec[self.index][2])]])
+                    bx, by, bz = self.plotCoordSys(np.array([[xp[self.index],yp[self.index],zp[self.index]]]), rvec_act, True, 1)
+                    self.ax_AR.add_artist(bx)
+                    self.ax_AR.add_artist(by)
+                    self.ax_AR.add_artist(bz)
+                    self.bx_prev, self.by_prev, self.bz_prev = bx, by, bz
+           
+                    if (((self.index+1) % AVG_MAX) != 0):
+                        self.xt += xp[self.index]
+                        self.yt += yp[self.index]
+                        self.zt += zp[self.index]
+                    else:
+                        self.xt = (self.xt + xp[self.index])/AVG_MAX
+                        self.yt = (self.yt + yp[self.index])/AVG_MAX
+                        self.zt = (self.zt + zp[self.index])/AVG_MAX
+                        self.ax_AR.plot([self.xt], [self.yt], [self.zt], 'm.')
+                        self.xt, self.yt, self.zt = 0, 0, 0
+
+                    self.index += 1
+                    print(100*self.index/len(xp))
+                else:
+                    pass
+
+                return
+
+        animation = FuncAnimation(self.fig, update, frames=len(xp), interval=1, repeat=False, save_count=len(xp))
+        animation.save('results/'+FILE+'.mp4', fps=25.)
+        print("Animation saved")
+        self.index = 0
+        self.markerEdge = self.markerEdge/5
+
+    def plot_MC(self, file, showAngles):
+        with open(file, 'rt', encoding='utf-8') as f:
+            reader = csv.reader(f, delimiter=',')
+            MC_data = list(reader)
+
+        MC_data = np.array(MC_data[7:], dtype=float)
+        #MC_time = MC_data[START::STEP,1]
+        MC_xop = np.average(MC_data[START::STEP,5])
+        MC_yop = np.average(MC_data[START::STEP,6])
+        MC_zop = np.average(MC_data[START::STEP,7])
+        MC_xor = np.average(MC_data[START::STEP,2])
+        MC_yor = np.average(MC_data[START::STEP,3])
+        MC_zor = np.average(MC_data[START::STEP,4])
+        bx, by, bz = self.plotCoordSys(np.array([[0,0,0]]), np.array([[0.,0.,0.]]), False, 10)
+        self.ax_MC.add_artist(bx)
+        self.ax_MC.add_artist(by)
+        self.ax_MC.add_artist(bz)
+        
+        R_MC = self.RotateXYZ(-MC_xor, -MC_yor, -MC_zor)
+        MC_o = R_MC.dot(np.array([[MC_xop],[MC_yop],[MC_zop]]))
+        R_MCh = self.RotateHom(MC_o[0,0], MC_o[1,0], MC_o[2,0], -MC_xor, -MC_yor, -MC_zor)
+
+        MC_xp, MC_yp, MC_zp = MC_data[START::STEP,12], MC_data[START::STEP,13], MC_data[START::STEP,14]
+        MC_pos = np.transpose(R_MCh.dot(np.column_stack((MC_xp, MC_yp, MC_zp, np.ones((len(MC_xp),1)))).T))
+        MC_xp, MC_yp, MC_zp = MC_pos[:,0], MC_pos[:,1], MC_pos[:,2]
+
+        if not SET_EQUAL:
+            self.ax_MC.set_xlim([min((0,min(MC_xp))),max((0,max(MC_xp)))])
+            self.ax_MC.set_ylim([min((0,min(MC_yp))),max((0,max(MC_yp)))])
+            self.ax_MC.set_zlim([min((0,min(MC_zp))),max((0,max(MC_zp)))])
+        else:
+            minval, maxval = min((0,min(MC_xp),min(MC_yp),min(MC_zp))), max((0,max(MC_xp),max(MC_yp),max(MC_zp)))
+            self.ax_MC.set_xlim([minval,maxval])
+            self.ax_MC.set_ylim([minval,maxval])
+            self.ax_MC.set_zlim([minval,maxval])
+        # self.ax_MC.set_xlim([0.5, 1])
+        # self.ax_MC.set_ylim([-0.5, -1])
+        # self.ax_MC.set_zlim([0.2, 0.7])
+
+        MC_xr = MC_data[START::STEP, 9]
+        MC_yr = MC_data[START::STEP,10]
+        MC_zr = MC_data[START::STEP,11]
+        self.ax_MC.plot(MC_xp[SHOW_START+START:],MC_yp[SHOW_START+START:],MC_zp[SHOW_START+START:],'k--')
+
+        self.ax_MC.set_xlabel("X [m]")
+        self.ax_MC.set_ylabel("Y [m]")
+        self.ax_MC.set_zlabel("Z [m]")
+
+        if showAngles:
+            for i in range(len(MC_xp[SHOW_START+START:])):
+                i += SHOW_START+START
+                if ((i % (AVG_MAX*10)) == 0):
+                    rvec_act = np.array([[MC_xr[i]+90,MC_yr[i],MC_zr[i]]])
+                    bx, by, bz = self.plotCoordSys(np.array([[MC_xp[i],MC_yp[i],MC_zp[i]]]), rvec_act, True, 1)
+                    self.ax_MC.add_artist(bx)
+                    self.ax_MC.add_artist(by)
+                    self.ax_MC.add_artist(bz)
+
+    def plot_AR(self, AR_file, MC_file, showAngles, showComponents):
+        if not ANIM:
+            self.plot_MC(MC_file, showAngles)
+        
+        with np.load(AR_file) as X:
             tvec = X['tvecs']
             rvec = X['rvecs']
             t_origin = X['t_origin']
             r_origin = X['t_origin']
             orientation = X['orientation']
             t = X['t']
-
+        
         m = self.plotMarkers(t_origin, r_origin, orientation, 10)
 
         xp = orientation[0][0]*tvec[:,orientation[1][0]]
         yp = orientation[0][1]*tvec[:,orientation[1][1]]
         zp = orientation[0][2]*tvec[:,orientation[1][2]]
 
-        self.ax.set_xlim([min((m[0],min(xp))),max((m[1],max(xp)))])
-        self.ax.set_ylim([min((m[2],min(yp))),max((m[3],max(yp)))])
-        self.ax.set_zlim([min((m[4],min(zp))),max((m[5],max(zp)))])
+        if not SET_EQUAL:
+            self.ax_AR.set_xlim([min((m[0],min(xp))),max((m[1],max(xp)))])
+            self.ax_AR.set_ylim([min((m[2],min(yp))),max((m[3],max(yp)))])
+            self.ax_AR.set_zlim([min((m[4],min(zp))),max((m[5],max(zp)))])
+        else:
+            minval, maxval = min((m[0],m[2],m[4],min(xp),min(yp),min(zp))), max((m[1],m[3],m[5],max(xp),max(yp),max(zp)))
+            self.ax_AR.set_xlim([minval,maxval])
+            self.ax_AR.set_ylim([minval,maxval])
+            self.ax_AR.set_zlim([minval,maxval])
+        # self.ax_AR.set_xlim([0.5, 1])
+        # self.ax_AR.set_ylim([-0.5, -1])
+        # self.ax_AR.set_zlim([0, 0.5])
 
-        measurements = tvec
+        measurements = np.column_stack((xp,yp,zp))
 
         avg = np.zeros((1,3))
         minv, maxv = 10000, 0
@@ -86,7 +219,7 @@ class Plotting():
         kf1 = kf1.em(measurements, n_iter=5)
         (smoothed_state_means, smoothed_state_covariances) = kf1.smooth(measurements)
 
-        print("kf1 done")
+        print("KF1 done")
 
         kf2 = KalmanFilter(transition_matrices = transition_matrix,
                         observation_matrices = observation_matrix,
@@ -97,7 +230,7 @@ class Plotting():
         kf2 = kf2.em(measurements, n_iter=5)
         (smoothed_state_means, smoothed_state_covariances) = kf2.smooth(measurements)
 
-        print("kf2 done")
+        print("KF2 done")
 
         if showComponents:
             times = t
@@ -118,135 +251,28 @@ class Plotting():
         yp = smoothed_state_means[:, 2]
         zp = smoothed_state_means[:, 4]
 
-        if showAngles:
-            for i in range(len(xp)):
-                if ((i % (AVG_MAX*2)) == 0):
-                    rvec_act = np.array([[float(rvec[i][0]),float(rvec[i][1]),float(rvec[i][2])]])
-                    bx, by, bz = self.plotCoordSys(np.array([[xp[i],yp[i],zp[i]]]), rvec_act, True, 1)
-                    self.ax.add_artist(bx)
-                    self.ax.add_artist(by)
-                    self.ax.add_artist(bz)
+        self.ax_AR.set_xlabel("X [m]")
+        self.ax_AR.set_ylabel("Y [m]")
+        self.ax_AR.set_zlabel("Z [m]")
 
-        self.ax.set_xlabel("X [m]")
-        self.ax.set_ylabel("Y [m]")
-        self.ax.set_zlabel("Z [m]")
+        if ANIM:
+            self.animate(xp, yp, zp, rvec)
+        else:
+            if showAngles:
+                for i in range(len(xp[SHOW_START:])):
+                    i += SHOW_START
+                    if ((i % (AVG_MAX*2)) == 0):
+                        rvec_act = np.array([[float(rvec[i][0]),float(rvec[i][1]),float(rvec[i][2])]])
+                        bx, by, bz = self.plotCoordSys(np.array([[xp[i],yp[i],zp[i]]]), rvec_act, True, 1)
+                        self.ax_AR.add_artist(bx)
+                        self.ax_AR.add_artist(by)
+                        self.ax_AR.add_artist(bz)
 
-        self.ax.plot(xp, yp, zp, 'k--')
-        plt.show()
 
-    def plotRT(self, file):
-        with np.load(file) as X:
-            t = X['t']
-            tvec = X['tvecs']
-            rvec = X['rvecs']
-            t_origin = X['t_origin']
-            r_origin = X['t_origin']
-            orientation = X['orientation']
 
-        plt.ion()
-        fig = plt.figure()
-        self.ax = fig.add_subplot(111, projection='3d')
-
-        xo = orientation[0][0]*t_origin[:,0,orientation[1][0]]
-        yo = orientation[0][1]*t_origin[:,0,orientation[1][1]]
-        zo = orientation[0][2]*t_origin[:,0,orientation[1][2]]
-        rxo = orientation[0][0]*r_origin[:,0,orientation[1][0]]
-        ryo = orientation[0][1]*r_origin[:,0,orientation[1][1]]
-        rzo = orientation[0][2]*r_origin[:,0,orientation[1][2]]
-
-        maxval=max((max(xo),max(yo),max(zo)))
-        minval=min((min(xo),min(yo),min(zo)))
-
-        # add the marker origins
-        for i in range(t_origin.shape[0]):
-            if i == 0:
-                # print(t_origin[i])
-                bx, by, bz = self.plotCoordSys(np.array([[xo[i],yo[i],zo[i]]]), np.array([[0.,0.,0.]]), False)
-            else:
-                bx, by, bz = self.plotCoordSys(np.array([[xo[i],yo[i],zo[i]]]), np.array([[rxo[i],ryo[i],rzo[i]]]), False)
-            self.ax.add_artist(bx)
-            self.ax.add_artist(by)
-            self.ax.add_artist(bz)
-
-        xp = orientation[0][0]*tvec[:,orientation[1][0]]
-        yp = orientation[0][1]*tvec[:,orientation[1][1]]
-        zp = orientation[0][2]*tvec[:,orientation[1][2]]
-        
-        okay = np.where(np.abs(np.diff(xp)) + np.abs(np.diff(yp)) + np.abs(np.diff(zp)) > 0)
-        xp = np.r_[xp[okay], xp[-1]]
-        yp = np.r_[yp[okay], yp[-1]]
-        zp = np.r_[zp[okay], zp[-1]]
-
-        maxval=max((max(xp),max(yp),max(zp), maxval))
-        minval=min((min(xp),min(yp),min(zp), minval))
-
-        self.ax.set_xlim([min((min(xo),min(xp))),max((max(xo),max(xp)))])
-        self.ax.set_ylim([min((min(yo),min(yp))),max((max(yo),max(yp)))])
-        self.ax.set_zlim([min((min(zo),min(zp))),max((max(zo),max(zp)))])
-
-        self.markerEdge = self.markerEdge*5
-        xp_new = np.array([[0.]])
-        yp_new = np.array([[0.]])
-        zp_new = np.array([[0.]])
-
-        bx_prev, by_prev, bz_prev = self.plotCoordSys(np.array([[0, 0, 0]]), np.array([[0.,0.,0.]]), False)
-        i = 0
-        while(True):
-            try:
-                bx_prev.remove()
-                by_prev.remove()
-                bz_prev.remove()
-            except:
-                pass
-
-            if i < len(xp):
-                rvec_act = np.array([[float(rvec[i][0]),float(rvec[i][1]),float(rvec[i][2])]])
-                # print(rvec_act)
-                # r = Rotation.from_euler('xyz', rvec_act)
-                # rvec_act = r.as_rotvec()
-                # Moving a coordinate system on the camera positions (origin, rotation) given
-                bx, by, bz = self.plotCoordSys(np.array([[xp[i],yp[i],zp[i]]]), rvec_act, True)
-                self.ax.add_artist(bx)
-                self.ax.add_artist(by)
-                self.ax.add_artist(bz)
-
-                bx_prev = bx
-                by_prev = by
-                bz_prev = bz
-
-                if i == 0:
-                    xt, yt, zt = 0, 0, 0            
-                if (((i+1) % AVG_MAX) != 0):
-                    xt += xp[i]
-                    yt += yp[i]
-                    zt += zp[i]
-                else:
-                    xt = (xt + xp[i])/AVG_MAX
-                    yt = (yt + yp[i])/AVG_MAX
-                    zt = (zt + zp[i])/AVG_MAX
-                    xp_new=np.append(xp_new, np.array([[xt]]), axis=1)
-                    yp_new=np.append(yp_new, np.array([[yt]]), axis=1)
-                    zp_new=np.append(zp_new, np.array([[zt]]), axis=1)
-
-                    self.ax.plot([xt], [yt], [zt], 'm.')
-
-                    xt, yt, zt = 0, 0, 0
-
-                i += 1
-                plt.pause(t[i]-t[i-1])
-            else:
-                try:
-                    tck, _ = interpolate.splprep([xp_new, yp_new, zp_new], s=1)
-                    # x_knots, y_knots, z_knots = interpolate.splev(tck[0], tck)
-                    u_fine = np.linspace(0,1,tvec.shape[0])
-                    x_fine, y_fine, z_fine = interpolate.splev(u_fine, tck)
-                    # ax.plot(x_knots, y_knots, z_knots, 'go')
-                    self.ax.plot(x_fine, y_fine, z_fine, 'g')
-                except:
-                    print("no spline")
-                
-                plt.pause(20)
-                break  
+            self.ax_AR.plot(xp[SHOW_START:], yp[SHOW_START:], zp[SHOW_START:], 'k--')
+            plt.tight_layout()
+            plt.show()
 
     def plotMarkers(self, t_origin, r_origin, orientation, MUT):
         xo = orientation[0][0]*t_origin[:,0,orientation[1][0]]
@@ -263,9 +289,9 @@ class Plotting():
                 bx, by, bz = self.plotCoordSys(np.array([[xo[i],yo[i],zo[i]]]), np.array([[0.,0.,0.]]), False, MUT)
             else:
                 bx, by, bz = self.plotCoordSys(np.array([[xo[i],yo[i],zo[i]]]), np.array([[rxo[i],ryo[i],rzo[i]]]), False, MUT)
-            self.ax.add_artist(bx)
-            self.ax.add_artist(by)
-            self.ax.add_artist(bz)
+            self.ax_AR.add_artist(bx)
+            self.ax_AR.add_artist(by)
+            self.ax_AR.add_artist(bz)
 
         return [min(xo), max(xo), min(yo), max(yo), min(zo), max(zo)]
 
@@ -277,6 +303,14 @@ class Plotting():
         Rot = RotX.dot(RotY.dot(RotZ))
 
         return Rot
+
+    def RotateHom(self, xo, yo, zo, xr, yr, zr):
+        R = self.RotateXYZ(xr, yr, zr)
+        vo = np.array([[xo],[yo],[zo]])
+        R_hom = np.column_stack((R,vo))
+        R_hom = np.row_stack((R_hom, np.array([[0,0,0,1]])))
+        
+        return R_hom
 
     def plotCoordSys(self, origin, rot, euler, MUT):
         bases = np.array([[1, 0, 0],[0, 1, 0], [0, 0, 1]])
@@ -300,5 +334,4 @@ class Plotting():
 
 
 plotter = Plotting(.11)
-plotter.plotout('results/Mocap/movement_20191111_115459.npz', True, False)
-#plotter.plotRT('results/Mocap/movement_20191111_112626.npz')
+plotter.plot_AR(ARUCO_PATH, MOCAP_PATH, SHOW_ANG, SHOW_COMP)
