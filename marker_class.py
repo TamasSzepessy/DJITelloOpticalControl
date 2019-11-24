@@ -1,5 +1,4 @@
 import numpy as np
-#from plot3d import Plotting
 from timeit import default_timer as timer
 import time
 import math
