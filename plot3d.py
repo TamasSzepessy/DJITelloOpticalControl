@@ -30,8 +30,8 @@ SET_EQUAL = True # for setting the axes limits
 
 # files
 FILE = 'vertical_test'
-ARUCO_PATH = 'results/MoCap/'+FILE+'.npz'
-MOCAP_PATH = 'results/MoCap/'+FILE+'.csv'
+ARUCO_PATH = 'test_data/'+FILE+'.npz'
+MOCAP_PATH = 'test_data/'+FILE+'.csv'
 
 # for the MC data, starting index
 START = 1000

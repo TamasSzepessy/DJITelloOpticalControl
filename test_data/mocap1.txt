@@ -1,0 +1,278 @@
+pygame 1.9.6
+Hello from the pygame community. https://www.pygame.org/contribute.html
+Send command: command
+Response: ok
+Send command: speed 10
+Response: ok
+Send command: streamoff
+Response: ok
+Send command: streamon
+Response: ok
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] non-existing PPS 0 referenced
+[h264 @ 000001ae81784f80] decode_slice_header error
+[h264 @ 000001ae81784f80] no frame!
+[h264 @ 000001ae81784f80] error while decoding MB 53 12, bytestream -18
+[h264 @ 000001ae83749940] non-existing PPS 0 referenced
+[h264 @ 000001ae83749940] decode_slice_header error
+[h264 @ 000001ae83749940] no frame!
+[h264 @ 000001ae83552640] non-existing PPS 0 referenced
+[h264 @ 000001ae83552640] decode_slice_header error
+[h264 @ 000001ae83552640] no frame!
+[h264 @ 000001ae83552ac0] non-existing PPS 0 referenced
+[h264 @ 000001ae83552ac0] decode_slice_header error
+[h264 @ 000001ae83552ac0] no frame!
+[h264 @ 000001ae8178a800] non-existing PPS 0 referenced
+[h264 @ 000001ae8178a800] decode_slice_header error
+[h264 @ 000001ae8178a800] no frame!
+[h264 @ 000001ae8178ac80] non-existing PPS 0 referenced
+[h264 @ 000001ae8178ac80] decode_slice_header error
+[h264 @ 000001ae8178ac80] no frame!
+[h264 @ 000001ae83a8e6c0] non-existing PPS 0 referenced
+[h264 @ 000001ae83a8e6c0] decode_slice_header error
+[h264 @ 000001ae83a8e6c0] no frame!
+[h264 @ 000001ae839e7b80] non-existing PPS 0 referenced
+[h264 @ 000001ae839e7b80] decode_slice_header error
+[h264 @ 000001ae839e7b80] no frame!
+[h264 @ 000001ae839e8000] non-existing PPS 0 referenced
+[h264 @ 000001ae839e8000] decode_slice_header error
+[h264 @ 000001ae839e8000] no frame!
+[h264 @ 000001ae83749940] non-existing PPS 0 referenced
+[h264 @ 000001ae83749940] decode_slice_header error
+[h264 @ 000001ae83749940] no frame!
+[h264 @ 000001ae83552640] non-existing PPS 0 referenced
+[h264 @ 000001ae83552640] decode_slice_header error
+[h264 @ 000001ae83552640] no frame!
+[h264 @ 000001ae83552ac0] non-existing PPS 0 referenced
+[h264 @ 000001ae83552ac0] decode_slice_header error
+[h264 @ 000001ae83552ac0] no frame!
+[h264 @ 000001ae8178a800] non-existing PPS 0 referenced
+[h264 @ 000001ae8178a800] decode_slice_header error
+[h264 @ 000001ae8178a800] no frame!
+[h264 @ 000001ae8178ac80] non-existing PPS 0 referenced
+[h264 @ 000001ae8178ac80] decode_slice_header error
+[h264 @ 000001ae8178ac80] no frame!
+[h264 @ 000001ae83a8e6c0] non-existing PPS 0 referenced
+[h264 @ 000001ae83a8e6c0] decode_slice_header error
+[h264 @ 000001ae83a8e6c0] no frame!
+[h264 @ 000001ae839e7b80] non-existing PPS 0 referenced
+[h264 @ 000001ae839e7b80] decode_slice_header error
+[h264 @ 000001ae839e7b80] no frame!
+[h264 @ 000001ae839e8000] non-existing PPS 0 referenced
+[h264 @ 000001ae839e8000] decode_slice_header error
+[h264 @ 000001ae839e8000] no frame!
+[h264 @ 000001ae83749940] non-existing PPS 0 referenced
+[h264 @ 000001ae83749940] decode_slice_header error
+[h264 @ 000001ae83749940] no frame!
+[h264 @ 000001ae83552640] non-existing PPS 0 referenced
+[h264 @ 000001ae83552640] decode_slice_header error
+[h264 @ 000001ae83552640] no frame!
+[h264 @ 000001ae83552ac0] non-existing PPS 0 referenced
+[h264 @ 000001ae83552ac0] decode_slice_header error
+[h264 @ 000001ae83552ac0] no frame!
+[h264 @ 000001ae8178a800] non-existing PPS 0 referenced
+[h264 @ 000001ae8178a800] decode_slice_header error
+[h264 @ 000001ae8178a800] no frame!
+[h264 @ 000001ae8178ac80] non-existing PPS 0 referenced
+[h264 @ 000001ae8178ac80] decode_slice_header error
+[h264 @ 000001ae8178ac80] no frame!
+[h264 @ 000001ae83a8e6c0] non-existing PPS 0 referenced
+[h264 @ 000001ae83a8e6c0] decode_slice_header error
+[h264 @ 000001ae83a8e6c0] no frame!
+[h264 @ 000001ae839e7b80] non-existing PPS 0 referenced
+[h264 @ 000001ae839e7b80] decode_slice_header error
+[h264 @ 000001ae839e7b80] no frame!
+[h264 @ 000001ae839e8000] non-existing PPS 0 referenced
+[h264 @ 000001ae839e8000] decode_slice_header error
+[h264 @ 000001ae839e8000] no frame!
+[h264 @ 000001ae83749940] non-existing PPS 0 referenced
+[h264 @ 000001ae83749940] decode_slice_header error
+[h264 @ 000001ae83749940] no frame!
+[h264 @ 000001ae83552640] non-existing PPS 0 referenced
+[h264 @ 000001ae83552640] decode_slice_header error
+[h264 @ 000001ae83552640] no frame!
+[h264 @ 000001ae83552ac0] non-existing PPS 0 referenced
+[h264 @ 000001ae83552ac0] decode_slice_header error
+[h264 @ 000001ae83552ac0] no frame!
+[h264 @ 000001ae8178a800] non-existing PPS 0 referenced
+[h264 @ 000001ae8178a800] decode_slice_header error
+[h264 @ 000001ae8178a800] no frame!
+[h264 @ 000001ae8178ac80] non-existing PPS 0 referenced
+[h264 @ 000001ae8178ac80] decode_slice_header error
+[h264 @ 000001ae8178ac80] no frame!
+[h264 @ 000001ae8178a800] error while decoding MB 53 12, bytestream -18
+[h264 @ 000001ae83552ac0] error while decoding MB 13 2, bytestream -6
+Send command: takeoff
+Timeout exceed on command takeoff
+Send command: takeoff
+Response: error
+Send command: takeoff
+Response: error
+[h264 @ 000001ae83552640] left block unavailable for requested intra mode
+[h264 @ 000001ae83552640] error while decoding MB 0 8, bytestream 7861
+[h264 @ 000001ae8178ac80] error while decoding MB 36 39, bytestream -6
+[h264 @ 000001ae8178a800] error while decoding MB 25 44, bytestream -8
+[h264 @ 000001ae839e7b80] error while decoding MB 42 43, bytestream -6
+[h264 @ 000001ae839e8000] error while decoding MB 20 42, bytestream -12
+[h264 @ 000001ae83749940] error while decoding MB 59 40, bytestream -10
+[h264 @ 000001ae839e8000] left block unavailable for requested intra4x4 mode -1
+[h264 @ 000001ae839e8000] error while decoding MB 0 9, bytestream 6888
+[h264 @ 000001ae83a8e6c0] left block unavailable for requested intra mode
+[h264 @ 000001ae83a8e6c0] error while decoding MB 0 14, bytestream 6320
+Positioned to origin, begin navigation
+Right sideways marker
+Target changed to 2
+Horizontal origin set
+Collecting data
+Marker 2 transformations calculated
+Marker 3 transformations calculated
+[h264 @ 000001ae83749940] left block unavailable for requested intra mode
+[h264 @ 000001ae83749940] error while decoding MB 0 29, bytestream 2276
+Right sideways marker
+Target changed to 3
+Marker 39 transformations calculated
+[h264 @ 000001ae83a8e6c0] error while decoding MB 33 42, bytestream -12
+Rotate right corner 1 marker
+Target changed to 39
+Marker 40 transformations calculated
+Marker 4 transformations calculated
+[h264 @ 000001ae8178ac80] left block unavailable for requested intra mode
+[h264 @ 000001ae8178ac80] error while decoding MB 0 7, bytestream 9370
+Rotate right corner 3 marker
+Target changed to 40
+Marker 13 transformations calculated
+[h264 @ 000001ae83a8e6c0] left block unavailable for requested intra mode
+[h264 @ 000001ae83a8e6c0] error while decoding MB 0 17, bytestream 7189
+[h264 @ 000001ae83749940] error while decoding MB 20 39, bytestream -6
+[h264 @ 000001ae83552640] error while decoding MB 17 34, bytestream -8
+Right sideways marker
+Target changed to 4
+Marker 32 transformations calculated
+[h264 @ 000001ae83552ac0] error while decoding MB 59 31, bytestream -8
+Marker 50 transformations calculated
+Left sideways marker
+Target changed to 13
+[h264 @ 000001ae83a8e6c0] error while decoding MB 24 35, bytestream -6
+[h264 @ 000001ae839e8000] left block unavailable for requested intra mode
+[h264 @ 000001ae839e8000] error while decoding MB 0 17, bytestream 8061
+[h264 @ 000001ae83552640] left block unavailable for requested intra mode
+[h264 @ 000001ae83552640] error while decoding MB 0 43, bytestream 9340
+Target changed to 50
+[h264 @ 000001ae839e8000] error while decoding MB 48 37, bytestream -6
+[h264 @ 000001ae83a8e6c0] error while decoding MB 7 39, bytestream -12
+End of flight
+Dataset saved
+Send command: streamoff
+Response: ok
