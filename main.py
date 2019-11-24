@@ -12,6 +12,7 @@ from video_writer import WriteVideo
 
 # Speed of the drone
 S = 60
+# Speed for autonomous navigation
 S_prog = 15
 # Frames per second of the pygame window display
 FPS = 25
@@ -49,11 +50,16 @@ class FrontEnd(object):
         self.up_down_velocity = 0
         self.yaw_velocity = 0
         self.speed = 10
+        
+        # Variables for drone's states
         self.battery = 0
         self.angles = [0., 0., 0., 0.]
+
+        # Direction queue for navigation
         self.dir_queue=queue.Queue()
         self.dir_queue.queue.clear()
 
+        # Bool variables for setting functions
         self.send_rc_control = False
         self.calibrate = False
         self.getPoints = False
@@ -72,11 +78,14 @@ class FrontEnd(object):
         thread_vid.daemon = True
         thread_vid.start()
 
+        # Data collection event
         self.getCoords_event = threading.Event()
         self.getCoords_event.clear()
+        # Navigate between markers
         self.navigate_event = threading.Event()
         self.navigate_event.clear()
 
+        # Camera class
         self.cam = Camera(S_prog, self.dir_queue, 'camcalib.npz',
                           self.getCoords_event, self.navigate_event, self.END_event)
 
@@ -109,18 +118,22 @@ class FrontEnd(object):
         while not should_stop:
             img=cv2.resize(frame_read.frame, (960,720))
 
+            # Read from drone state queue
             if not self.data_queue.empty():
                 pitch, roll, yaw, tof, bat = self.data_queue.get()
                 self.data_queue.queue.clear()
                 self.battery = bat
-                #print("tof"+str(tof))
                 self.angles_tof = [pitch, roll, yaw, tof]
                 #print([pitch, roll, yaw, tof])
 
+            # Calibrate drone camera
             if self.calibrate:
                 img = self.cam.calibrator(img)
 
+            # Detect ArUco markers
             img = self.cam.aruco(img, self.getPoints, self.resetPoints, self.angles_tof)
+
+            # Reset measurements
             if self.resetPoints:
                 self.resetPoints=False
 
@@ -147,18 +160,16 @@ class FrontEnd(object):
                 cv2.imwrite("images/"+timestr+".jpg", img)
                 self.save = False
 
-            # Start navigation, points and video capture
+            # Navigation started, points and video capture
             if self.getCoords_event.is_set():
                 self.video_queue.put(np.copy(img))
 
-            # if self.battery<20:
-            #     self.tello.land()
-
-            # write battery percentage
+            # Write battery percentage
             img = self.cam.writeBattery(img, self.battery)
 
             img=cv2.resize(img, (640,480))
             
+            # Resize pyGame window
             if (img.shape[1] != self.width) or (img.shape[0] != self.height):
                 self.width = img.shape[1]
                 self.height = img.shape[0]
@@ -231,7 +242,7 @@ class FrontEnd(object):
                 self.resetPoints = True
         elif key == pygame.K_m:  # save image
             self.save = True
-        elif key == pygame.K_o:  # save image
+        elif key == pygame.K_o:  # start navigation
             if self.navigate_event.is_set():
                 self.navigate_event.clear()
             else:
@@ -244,11 +255,13 @@ class FrontEnd(object):
         """ Update routine. Send velocities to Tello."""
         if self.send_rc_control:
             if self.navigate_event.is_set() and not self.dir_queue.empty():
+                # Auto navigation, read directions queue
                 x, y, z, yaw = self.dir_queue.get()
-                #print([x, y, z, yaw])
                 self.tello.send_rc_control(int(x), int(y), int(z), int(yaw))
             else:
-                self.dir_queue.queue.clear()
+                # Clear directions queue to avoid storing old data
+                self.dir_queue.queue.clear() 
+                # Control tello manually
                 self.tello.send_rc_control(self.left_right_velocity, self.for_back_velocity, self.up_down_velocity,
                                            self.yaw_velocity)
 

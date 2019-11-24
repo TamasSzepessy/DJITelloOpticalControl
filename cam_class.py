@@ -76,6 +76,7 @@ class Camera():
         self.seenMarkers=Markers(MARKER_SIDE, self.getCoords_event)
         self.getFirst = True
 
+    # Calibrate camera
     def calibrator(self,frame):
         if self.calib==False:
             gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
@@ -128,6 +129,7 @@ class Camera():
 
         return frame
 
+    # Write battery percentage on frame
     def writeBattery(self, frame, bat):
         w=frame.shape[1]
         h=frame.shape[0]
@@ -140,6 +142,7 @@ class Camera():
 
         return frame
 
+    # Detect ArUco markers
     def aruco(self, frame, CoordGet, CoordReset, angles_tof):
         # Get the calibrated camera matrices
         if self.not_loaded:
@@ -163,10 +166,10 @@ class Camera():
         aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_7X7_100)
         parameters = cv2.aruco.DetectorParameters_create()
 
-        # Detecting markers: get corners and IDs
+        # detecting markers: get corners and IDs
         corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
 
-        # List for all currently seen IDs
+        # list for all currently seen IDs
         id_list=[]
 
         if CoordReset or self.resetCoords:
@@ -179,7 +182,7 @@ class Camera():
 
         if np.all(ids != None):
             ### IDs found
-            # Pose estimation with marker edge length
+            # pose estimation with marker edge length
             rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners, self.markerEdge, self.mtx, self.dist)
 
             for i in range(0, ids.size):
@@ -187,18 +190,23 @@ class Camera():
 
                 id_list.append(ids[i][0])
 
-            # Draw square around the markers
+            # draw square around the markers
             cv2.aruco.drawDetectedMarkers(frame, corners)
             
+            # only if navigation is turned on
             if self.navigate_event.is_set():
                 if not self.findNew:
+                    # draw yellow line to target
                     frame = self.drawCenter(frame, id_list, corners, w, h)
+                    # marker navigation
                     self.navigateToMarker(id_list, tvecs, rvecs)
                 else:
+                    # if no new markers can be seen, rotate
                     if self.TargetPos[0][3] <= 0 and self.TargetPos[0][3] != -5:
                         self.dir_queue.put([0, 0, 0, self.speed*2])
                     else:
                         self.dir_queue.put([0, 0, 0, -self.speed*2])
+                    # if new marker found, set as target
                     for ID in id_list:
                         if ID not in self.beenThere:
                             self.TargetID = ID
@@ -211,13 +219,15 @@ class Camera():
                     id_list, tvecs, rvecs = self.filterCorners(w, h, corners, id_list, tvecs, rvecs)
 
                     if len(id_list) > 0:
+                        # from drone state queue
                         angles = np.array([[angles_tof[0], angles_tof[1], angles_tof[2]]])
                         tof = angles_tof[3]
+                        # add new marker
                         self.seenMarkers.appendMarker(id_list, tvecs, rvecs, angles, tof)
-
-                        #_, _, plotIMG = self.seenMarkers.getCoords(id_list, tvecs, rvecs)
+                        # calculate positions, if marker is already allowed
                         self.seenMarkers.getMov(id_list, tvecs, rvecs, angles)
 
+                    # after the end, it should close, back to first
                     if not self.getCoords_event.is_set():
                         self.getFirst = True
         else:
@@ -234,6 +244,7 @@ class Camera():
     # Look for origin marker and set directions
     def navigateToMarker(self, seen_id_list, tvecs, rvecs):
         if self.TargetID not in seen_id_list:
+            # if lost, rotate in direction of last seen marker's x position
             if timer()-self.t_lost > 1:
                 if self.last_marker_pos >= 0:
                     self.dir_queue.put([0, 0, 0, self.speed*2])
@@ -254,12 +265,13 @@ class Camera():
             # print(rvec)
 
             directions = [0., 0., 0., 0.]
-            A = self.amplify*self.speed
-
+            A = self.amplify*self.speed # amplifier
+            
+            # yaw speed control
             err_yaw = rvec[0][1] - self.TargetPos[0][3]
             directions[3] = self.speed/2*self.yaw_pid.control(err_yaw)
 
-            # tvecs in camera coordinates
+            # vx, vy, vz speed control
             err_x = self.TargetPos[0][0] - tvec[0][0]
             directions[0] = -A*self.v_pid.control(err_x)
             err_y = self.TargetPos[0][2] - tvec[0][2]
@@ -267,21 +279,22 @@ class Camera():
             err_z = self.TargetPos[0][1] - tvec[0][1]
             directions[2] = A*self.vz_pid.control(err_z)
 
+            # aligned to setpoint
             if abs(err_x) < ERROR and abs(err_y) < ERROR and abs(err_z) < ERROR and abs(err_yaw) < 5:
                 if timer()-self.t_inPos > 1:
-                    if self.TargetID == 1:
+                    if self.TargetID == 1: # origin marker
                         self.getFirst = False
                         print("Positioned to origin, begin navigation")
                         self.seenMarkers.nullCoords()
-                        # self.resetCoords = True
                         self.getCoords_event.set()
-                    if self.TargetID == 50:
+                    if self.TargetID == 50: # end marker
                         print("End of flight")
                         self.getCoords_event.clear()
                         self.resetNavigators()
                         self.navigate_event.clear()
                         self.END_event.set()
                     
+                    # target change
                     if not self.getFirst and not self.END_event.is_set():
                         self.beenThere.append(self.TargetID)
                         self.changeObjective(seen_id_list, tvecs)
@@ -295,11 +308,12 @@ class Camera():
                         else:
                             print("Searching for new marker...") 
             else:
-                self.t_inPos = timer()
+                self.t_inPos = timer() # if not in position, null timer
 
-            self.t_lost = timer()
-            self.dir_queue.put(directions)
+            self.t_lost = timer() # null lost timer
+            self.dir_queue.put(directions) # put directions intu navigation queue
 
+    # Reset all variables needed for navigation
     def resetNavigators(self):
         self.beenThere = []
         self.TargetID = 1
@@ -311,6 +325,7 @@ class Camera():
         self.last_marker_pos = 1.
         self.TargetPos = np.array([[0., 0., 0.8, 0.]])
     
+    # Change target of navigation
     def changeObjective(self, seen_id_list, tvecs):
         length = len(seen_id_list)
         dist_minimum = 10000
@@ -325,6 +340,7 @@ class Camera():
         else:
             self.TargetID = min_ind
 
+    # Draw line to targeted marker
     def drawCenter(self, frame, seen_id_list, corners, w, h):
         if self.TargetID not in seen_id_list:
             pass
@@ -367,20 +383,19 @@ cap = cv2.VideoCapture(0)
 direc_queue = queue.Queue()
 getCoords_event = threading.Event()
 getCoords_event.clear()
-cam = Camera(15, direc_queue, 'camcalib_webcam.npz', getCoords_event)
+navigate_event = threading.Event()
+navigate_event.clear()
+END_event = threading.Event()
+END_event.clear()
+cam = Camera(15, dir_queue, 'camcalib_webcam.npz', getCoords_event, navigate_event, END_event)
 getCoords = False
 resetCoords = False
 
 while True:
     ret, frame = cap.read()
-    #cuFrame=cv2.cuda_GpuMat(frame)
 
-    #frame, directions = cam.detectFace(frame)
-    #print(directions)
-
-    frame = cam.aruco(frame, getCoords, resetCoords)
+    frame = cam.aruco(frame, getCoords, resetCoords, [0,0,0,0])
     
-    #frame=cuFrame.download()
     cv2.imshow('img', frame)
 
     if not direc_queue.empty():

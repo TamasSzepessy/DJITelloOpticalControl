@@ -31,6 +31,7 @@ class Markers():
         # for logging
         self.OpenedFile=False
 
+        # for data collection
         self.getCoords_event = getCoords_event
 
     # Append marker to the list of stered markers
@@ -38,7 +39,7 @@ class Markers():
         for n_id in seen_id_list:
             n_index = seen_id_list.index(n_id)
             if n_id == 1 and len(self.ids) == 0:
-                # not in self.ids and len(self.ids) == 0:
+                # add the first marker as origin
                 self.ids.append(n_id)
                 self.tvec_origin.append(np.array([[0,0,0]]))
                 self.rvec_origin.append(rvec[n_index])
@@ -48,14 +49,7 @@ class Markers():
                 self.tvec_min.append(10000)
                 self.angle_origin = angles
                 self.height_origin = abs(tof)
-                # tvec_in_marker = tf.TranslationInMarker(rvec[n_index], tvec[n_index])
-                # self.height_origin = abs(tof) - tvec_in_marker[0][1]
-                # print(tof)
-                # print(tvec_in_marker)
-                # print(self.height_origin)
-                # self.tvec_origin.append(np.array([[0, self.height_origin, 0]]))
                 rvec_Euler = tf.rotationVectorToEulerAngles(rvec[n_index])*180/math.pi
-                #print(rvec_Euler)
                 # determine orientation
                 orig_type = "?"
                 if abs(rvec_Euler[0][0]) <= 150: # horizontal
@@ -67,6 +61,7 @@ class Markers():
                 #print(self.orientation)
                 print(orig_type + " origin set")
             elif n_id not in self.ids and len(self.ids) > 0 and len(seen_id_list) >= 2:
+                # append new marker to lists with dummy values
                 self.ids.append(n_id)
                 self.tvec_origin.append(np.array([[0, 0, 0]]))
                 self.rvec_origin.append(np.array([[0, 0, 0]]))
@@ -80,6 +75,7 @@ class Markers():
                         m_index = seen_id_list.index(m_id)
                         m_index_list = self.ids.index(m_id)
                         n_index_list = self.ids.index(n_id)
+                        # calculate needed matrix transformations
                         t, R, r, a, ma, mi = tf.getTransformations(n_id, tvec[m_index], tvec[n_index], rvec[m_index], rvec[n_index],
                                                         self.tvec_origin[m_index_list], self.tvec_origin[n_index_list],
                                                         self.rvec_origin[m_index_list], self.rvec_origin[n_index_list],
@@ -94,12 +90,14 @@ class Markers():
                         self.tvec_min[n_index_list] = mi
                         break
             elif n_id in self.ids and self.allow_use[self.ids.index(n_id)]<ALLOW_LIMIT:
+                # marker can be used only after ALLOW_LIMIT has been reached
                 for m_id in seen_id_list:
                     if m_id in self.ids and m_id != n_id and self.allow_use[self.ids.index(m_id)]==ALLOW_LIMIT:
                         # n is to be added, m is already in list
                         m_index = seen_id_list.index(m_id)
                         m_index_list = self.ids.index(m_id)
                         n_index_list = self.ids.index(n_id)
+                        # calculate needed matrix transformations
                         t, R, r, a, ma, mi = tf.getTransformations(n_id, tvec[m_index], tvec[n_index], rvec[m_index], rvec[n_index],
                                                         self.tvec_origin[m_index_list], self.tvec_origin[n_index_list],
                                                         self.rvec_origin[m_index_list], self.rvec_origin[n_index_list],
@@ -120,6 +118,8 @@ class Markers():
         len_diff = 0
         dtv = np.zeros((1,3))
         drv = np.zeros((1,3))
+
+        # calculating translation
         for i in range(length):
             if seen_id_list[i] in self.ids:
                 ind = self.ids.index(seen_id_list[i])
@@ -132,12 +132,8 @@ class Markers():
         if length>0:
             dtv=dtv/length
 
-        # dtv[0][2] = self.height_origin + dtv[0][2]
-
+        # calculating rotation
         drv = angles - self.angle_origin
-
-        #print(drv)
-        #time.sleep(0.1)
 
         return dtv, drv
     
@@ -163,6 +159,7 @@ class Markers():
         self.angle_origin = np.zeros((1,3))
         self.height_origin = 0
 
+    # Calculate and store movement points during navigation
     def getMov(self, seen_id_list, tvecs, rvecs, angles):
         if self.getCoords_event.is_set() and not self.OpenedFile:
             dtv, drv = self.getCoords(seen_id_list, tvecs, rvecs, angles)
@@ -184,4 +181,3 @@ class Markers():
                      orientation=self.orientation, height_origin=self.height_origin)
             self.OpenedFile=False
             print("Dataset saved")
-            #self.plotter.plotout("results/movement_"+timestr+".npz")

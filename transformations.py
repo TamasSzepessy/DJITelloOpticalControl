@@ -1,7 +1,6 @@
 import numpy as np
 import math
 import cv2
-#import cam_class
 from scipy.spatial.transform import Rotation
 
 # Calculate transformation matrices and average them
@@ -17,6 +16,7 @@ def getTransformations(n_id, tvec_m, tvec_n, rvec_m, rvec_n, tvec_orig_m, tvec_o
         R_m = cv2.Rodrigues(rvec_m)[0]
         R_n = cv2.Rodrigues(rvec_n)[0]
 
+        # for filtering out min and max values
         tvec_temp = tvec_orig_m + dRot_m.dot(-R_m.T.dot(dtvec))
         if np.linalg.norm(tvec_temp) > np.linalg.norm(tvec_max_n):
             tvec_max_n = tvec_temp
@@ -45,7 +45,7 @@ def getTransformations(n_id, tvec_m, tvec_n, rvec_m, rvec_n, tvec_orig_m, tvec_o
         dRot_n = dRot_n/ALLOW_LIMIT # rotation matrix from 'n' to global
         #tvec_nm = tvec_orig_n + dRot_n.dot(tvec_nn) # camera pose from 'n' to global
 
-        rvec_orig_n = rotationMatrixToRotationVector(-dRot_n.T)
+        rvec_orig_n = rotationMatrixToRotationVector(-dRot_n.T) # the orientation of 'n'
         # print("rvec_orig_n:")
         # print(rotationVectorToEulerAngles(rvec_orig_n)*180/math.pi)
         # print("tvec_mm:")
@@ -54,6 +54,7 @@ def getTransformations(n_id, tvec_m, tvec_n, rvec_m, rvec_n, tvec_orig_m, tvec_o
         # print(tvec_nm)
         print("Marker "+str(n_id)+" transformations calculated")
     
+    # transose for row vector
     tvec_orig_n = np.transpose(tvec_orig_n)
     #rvec_orig_n = np.transpose(rvec_orig_n)
 
@@ -69,6 +70,7 @@ def calculatePos(tvec, rvec, tvec_orig, dRot):
     tvec = np.transpose(tvec)
     return tvec
 
+# Get position in marker's coordinate system
 def TranslationInMarker(rvec, tvec):
     tvec = np.transpose(tvec)
     R = cv2.Rodrigues(rvec)[0]

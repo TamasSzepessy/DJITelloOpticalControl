@@ -1,33 +1,44 @@
 import numpy as np
 import matplotlib
-# matplotlib.use("TkAgg")
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.patches import FancyArrowPatch
 from mpl_toolkits.mplot3d import proj3d
 from matplotlib.animation import FuncAnimation
 from scipy.spatial.transform import Rotation
+import scipy.linalg
 import math
 import cv2
 import time
 import csv
 from pykalman import KalmanFilter
 
-SHOW_ANG = False
-SHOW_COMP = False
-ANIM = False
+SHOW_ANG = False # show angles static
+SHOW_COMP = False # show KF components
+ANIM = True # animate and save video
+SINGLE = False # only show the AR values
 
-AVG_MAX = 12
-SMOOTHER = 5000
-SET_EQUAL = False
+# correct origins with surface fit
+FIT_SURFACE = False
+SURF_ORDER = 2
+UNCORRECTED_ALSO = False
+GROUND_PLANE = False
 
-FILE = 'flight_03'
+AVG_MAX = 12 # for initial values
+SMOOTHER = 5000 # for Kalman filter
+SET_EQUAL = True # for setting the axes limits
+
+# files
+FILE = 'vertical_test'
 ARUCO_PATH = 'results/MoCap/'+FILE+'.npz'
 MOCAP_PATH = 'results/MoCap/'+FILE+'.csv'
+
+# for the MC data, starting index
 START = 1000
 STEP = 4
-
+# starting index of shown data
 SHOW_START = 0
+
 
 class Arrow3D(FancyArrowPatch):
     def __init__(self, xs, ys, zs, *args, **kwargs):
@@ -44,7 +55,7 @@ class Plotting():
     def __init__(self, MARKER_SIDE):
         self.markerEdge = MARKER_SIDE
         self.fig = plt.figure(1)
-        if ANIM:
+        if ANIM or SINGLE:
             self.ax_AR = self.fig.add_subplot(111, projection='3d')
         else:
             self.ax_AR = self.fig.add_subplot(121, projection='3d')
@@ -53,11 +64,24 @@ class Plotting():
         self.bx_prev, self.by_prev, self.bz_prev = self.plotCoordSys(np.array([[0, 0, 0]]), np.array([[0.,0.,0.]]), False, 1)
         self.index = 0
 
-    def animate(self, xp, yp, zp, rvec):        
+    def animate(self, t, xp, yp, zp, rvec):
         self.markerEdge = self.markerEdge*5
         self.xt, self.yt, self.zt = 0, 0, 0
+        t = (t[1:]-t[0:-1])/0.04
+        def frame_generator():
+            i = 0
+            for frame in range(len(t)):
+                yield frame
+                # If we should "sleep" here, yield None HOLD_COUNT times
+                for _ in range(int(round(t[i]))-1):
+                    yield None
+                i += 1
+
+        frame_list=list(frame_generator())
+
         def update(frame):
-            if frame is None: return
+            if frame is None:
+                return
             else:
                 if self.index < len(xp):
                     try:
@@ -91,8 +115,8 @@ class Plotting():
 
                 return
 
-        animation = FuncAnimation(self.fig, update, frames=len(xp), interval=1, repeat=False, save_count=len(xp))
-        animation.save('results/'+FILE+'.mp4', fps=25.)
+        animation = FuncAnimation(self.fig, update, frames=frame_list, interval=1, repeat=False, save_count=len(frame_list))
+        animation.save('results/'+FILE+'_2.mp4', fps=25.)
         print("Animation saved")
         self.index = 0
         self.markerEdge = self.markerEdge/5
@@ -128,10 +152,13 @@ class Plotting():
             self.ax_MC.set_ylim([min((0,min(MC_yp))),max((0,max(MC_yp)))])
             self.ax_MC.set_zlim([min((0,min(MC_zp))),max((0,max(MC_zp)))])
         else:
-            minval, maxval = min((0,min(MC_xp),min(MC_yp),min(MC_zp))), max((0,max(MC_xp),max(MC_yp),max(MC_zp)))
-            self.ax_MC.set_xlim([minval,maxval])
-            self.ax_MC.set_ylim([minval,maxval])
-            self.ax_MC.set_zlim([minval,maxval])
+            min_x, max_x = min(MC_xp), max(MC_xp)
+            min_y, max_y = min(MC_yp), max(MC_yp)
+            min_z, max_z = min(MC_zp), max(MC_zp)
+            dmax = max((max_x-min_x, max_y-min_y, max_z-min_z))
+            self.ax_MC.set_xlim([(max_x+min_x)/2-dmax/2, (max_x+min_x)/2+dmax/2])
+            self.ax_MC.set_ylim([(max_y+min_y)/2-dmax/2, (max_y+min_y)/2+dmax/2])
+            self.ax_MC.set_zlim([(max_z+min_z)/2-dmax/2, (max_z+min_z)/2+dmax/2])
         # self.ax_MC.set_xlim([0.5, 1])
         # self.ax_MC.set_ylim([-0.5, -1])
         # self.ax_MC.set_zlim([0.2, 0.7])
@@ -156,7 +183,7 @@ class Plotting():
                     self.ax_MC.add_artist(bz)
 
     def plot_AR(self, AR_file, MC_file, showAngles, showComponents):
-        if not ANIM:
+        if not ANIM and not SINGLE:
             self.plot_MC(MC_file, showAngles)
         
         with np.load(AR_file) as X:
@@ -167,25 +194,25 @@ class Plotting():
             orientation = X['orientation']
             t = X['t']
         
-        m = self.plotMarkers(t_origin, r_origin, orientation, 10)
+        m, o_points = self.plotMarkers(t_origin, r_origin, orientation, 10)
 
         xp = orientation[0][0]*tvec[:,orientation[1][0]]
         yp = orientation[0][1]*tvec[:,orientation[1][1]]
         zp = orientation[0][2]*tvec[:,orientation[1][2]]
 
-        if not SET_EQUAL:
-            self.ax_AR.set_xlim([min((m[0],min(xp))),max((m[1],max(xp)))])
-            self.ax_AR.set_ylim([min((m[2],min(yp))),max((m[3],max(yp)))])
-            self.ax_AR.set_zlim([min((m[4],min(zp))),max((m[5],max(zp)))])
-        else:
-            minval, maxval = min((m[0],m[2],m[4],min(xp),min(yp),min(zp))), max((m[1],m[3],m[5],max(xp),max(yp),max(zp)))
-            self.ax_AR.set_xlim([minval,maxval])
-            self.ax_AR.set_ylim([minval,maxval])
-            self.ax_AR.set_zlim([minval,maxval])
-        # self.ax_AR.set_xlim([0.5, 1])
-        # self.ax_AR.set_ylim([-0.5, -1])
-        # self.ax_AR.set_zlim([0, 0.5])
+        # filter out 0.0 values
+        okay = [0]
+        for i in range(1,len(xp)):
+            if xp[i] == 0 or yp[i] == 0 or zp[i] == 0:
+                pass
+            else:
+                okay.append(i)
+        xp = np.r_[xp[okay]]
+        yp = np.r_[yp[okay]]
+        zp = np.r_[zp[okay]]
+        t = np.r_[t[okay]]
 
+        # apply Kalman filter
         measurements = np.column_stack((xp,yp,zp))
 
         avg = np.zeros((1,3))
@@ -232,33 +259,56 @@ class Plotting():
 
         print("KF2 done")
 
+        # show x,y,z components filtered
         if showComponents:
-            times = t
             plt.figure(2)
             plt.xlabel("t [s]")
             plt.ylabel("X [m]")
-            plt.plot(times, measurements[:, 0], 'r-', times, smoothed_state_means[:, 0], 'b--')
+            plt.plot(t, measurements[:, 0], 'r-', t, smoothed_state_means[:, 0], 'b--')
             plt.figure(3)
             plt.xlabel("t [s]")
             plt.ylabel("Y [m]")
-            plt.plot(times, measurements[:, 1], 'g-', times, smoothed_state_means[:, 2], 'r--')
+            plt.plot(t, measurements[:, 1], 'g-', t, smoothed_state_means[:, 2], 'r--')
             plt.figure(4)
             plt.xlabel("t [s]")
             plt.ylabel("Z [m]")
-            plt.plot(times, measurements[:, 2], 'b-', times, smoothed_state_means[:, 4], 'r--')
+            plt.plot(t, measurements[:, 2], 'b-', t, smoothed_state_means[:, 4], 'r--')
 
         xp = smoothed_state_means[:, 0]
         yp = smoothed_state_means[:, 2]
         zp = smoothed_state_means[:, 4]
 
+        # corrigate to ground surface
+        if FIT_SURFACE and not UNCORRECTED_ALSO:
+            zp = self.fitSurface(SURF_ORDER, o_points, m, xp, yp, zp, True)
+        elif FIT_SURFACE and UNCORRECTED_ALSO:
+            zp_2 = self.fitSurface(SURF_ORDER, o_points, m, xp, yp, zp, True)
+
+        # set the axes limits and labels
+        if not SET_EQUAL:
+            self.ax_AR.set_xlim([min((m[0],min(xp))),max((m[1],max(xp)))])
+            self.ax_AR.set_ylim([min((m[2],min(yp))),max((m[3],max(yp)))])
+            self.ax_AR.set_zlim([min((m[4],min(zp))),max((m[5],max(zp)))])
+        else:
+            min_x, max_x = min((m[0],min(xp))), max((m[1],max(xp)))
+            min_y, max_y = min((m[2],min(yp))), max((m[3],max(yp)))
+            min_z, max_z = min((m[4],min(zp))), max((m[5],max(zp)))
+            dmax = max((max_x-min_x, max_y-min_y, max_z-min_z))
+            self.ax_AR.set_xlim([(max_x+min_x)/2-dmax/2, (max_x+min_x)/2+dmax/2])
+            self.ax_AR.set_ylim([(max_y+min_y)/2-dmax/2, (max_y+min_y)/2+dmax/2])
+            self.ax_AR.set_zlim([(max_z+min_z)/2-dmax/2, (max_z+min_z)/2+dmax/2])
+        # self.ax_AR.set_xlim([0.5, 1])
+        # self.ax_AR.set_ylim([-0.5, -1])
+        # self.ax_AR.set_zlim([0, 0.5])
+
         self.ax_AR.set_xlabel("X [m]")
         self.ax_AR.set_ylabel("Y [m]")
         self.ax_AR.set_zlabel("Z [m]")
 
-        if ANIM:
-            self.animate(xp, yp, zp, rvec)
+        if ANIM: # animation
+            self.animate(t, xp, yp, zp, rvec)
         else:
-            if showAngles:
+            if showAngles: # just for static angle display
                 for i in range(len(xp[SHOW_START:])):
                     i += SHOW_START
                     if ((i % (AVG_MAX*2)) == 0):
@@ -268,11 +318,54 @@ class Plotting():
                         self.ax_AR.add_artist(by)
                         self.ax_AR.add_artist(bz)
 
-
-
+            if FIT_SURFACE and UNCORRECTED_ALSO: # shof path before correction also
+                self.ax_AR.plot(xp[SHOW_START:], yp[SHOW_START:], zp_2[SHOW_START:], 'b--')
+            
             self.ax_AR.plot(xp[SHOW_START:], yp[SHOW_START:], zp[SHOW_START:], 'k--')
             plt.tight_layout()
             plt.show()
+
+    def fitSurface(self, order, points, m, x, y, z, corrigate):
+        # regular grid covering the domain of the data
+        X,Y = np.meshgrid(np.arange(m[0]-0.3, m[1]+0.3, 0.1), np.arange(m[2]-0.3, m[3]+0.3, 0.1))
+        XX = X.flatten()
+        YY = Y.flatten()
+
+        # 1: linear, 2: quadratic
+        if order == 1:
+            # best-fit linear plane
+            A = np.c_[points[:,0], points[:,1], np.ones(points.shape[0])]
+            C,_,_,_ = scipy.linalg.lstsq(A, points[:,2])    # coefficients
+            
+            # evaluate it on grid
+            Z = C[0]*X + C[1]*Y + C[2]
+            # evaluate it on drone path
+            z_diff = np.dot(np.c_[x, y, np.ones(x.shape)], C).reshape(x.shape)
+        elif order == 2:
+            # best-fit quadratic curve
+            A = np.c_[np.ones(points.shape[0]), points[:,:2], np.prod(points[:,:2], axis=1), points[:,:2]**2]
+            C,_,_,_ = scipy.linalg.lstsq(A, points[:,2])
+        
+            # evaluate it on a grid
+            Z = np.dot(np.c_[np.ones(XX.shape), XX, YY, XX*YY, XX**2, YY**2], C).reshape(X.shape)
+            # evaluate it on drone path
+            z_diff = np.dot(np.c_[np.ones(x.shape), x, y, x*y, x**2, y**2], C).reshape(x.shape)
+        
+        if corrigate:
+            # correction ratio in range of length
+            corr = np.arange(0, len(z), 1)/len(z)
+            # correcting z values
+            z = z-z_diff*corr*2
+        else:
+            z = z-z_diff
+
+        if GROUND_PLANE:
+            Z0 = 0*X + 0*Y + 0
+            self.ax_AR.plot_surface(X, Y, Z0, rstride=1, cstride=1, alpha=0.2)
+
+        # self.ax_AR.plot_surface(X, Y, Z, rstride=1, cstride=1, alpha=0.2)
+
+        return z
 
     def plotMarkers(self, t_origin, r_origin, orientation, MUT):
         xo = orientation[0][0]*t_origin[:,0,orientation[1][0]]
@@ -282,18 +375,29 @@ class Plotting():
         ryo = orientation[0][1]*r_origin[:,0,orientation[1][1]]
         rzo = orientation[0][2]*r_origin[:,0,orientation[1][2]]
 
+        m = [min(xo), max(xo), min(yo), max(yo), min(zo), max(zo)]
+        if FIT_SURFACE:
+            zo_2=self.fitSurface(SURF_ORDER, np.column_stack((xo,yo,zo)), m, xo, yo, zo, False)
+
         # add the marker origins
-        for i in range(t_origin.shape[0]):
+        for i in range(len(xo)):
             if i == 0:
-                # print(t_origin[i])
                 bx, by, bz = self.plotCoordSys(np.array([[xo[i],yo[i],zo[i]]]), np.array([[0.,0.,0.]]), False, MUT)
             else:
-                bx, by, bz = self.plotCoordSys(np.array([[xo[i],yo[i],zo[i]]]), np.array([[rxo[i],ryo[i],rzo[i]]]), False, MUT)
+                if FIT_SURFACE:
+                    bx, by, bz = self.plotCoordSys(np.array([[xo[i],yo[i],zo_2[i]]]), np.array([[rxo[i],ryo[i],rzo[i]]]), False, MUT)
+                else:
+                    bx, by, bz = self.plotCoordSys(np.array([[xo[i],yo[i],zo[i]]]), np.array([[rxo[i],ryo[i],rzo[i]]]), False, MUT)
             self.ax_AR.add_artist(bx)
             self.ax_AR.add_artist(by)
             self.ax_AR.add_artist(bz)
 
-        return [min(xo), max(xo), min(yo), max(yo), min(zo), max(zo)]
+        if FIT_SURFACE:
+            m = [min(xo), max(xo), min(yo), max(yo), 0, max(zo)]
+        else:
+            m = [min(xo), max(xo), min(yo), max(yo), min(zo), max(zo)]
+
+        return m, np.column_stack((xo,yo,zo))
 
     def RotateXYZ(self, pitch, roll, yaw):
         pitch, roll, yaw = [pitch*math.pi/180, roll*math.pi/180, yaw*math.pi/180]
@@ -331,7 +435,6 @@ class Plotting():
         coord_arrow_Z = Arrow3D((ox,ox+bases[0][2]),(oy,oy+bases[1][2]),(oz,oz+bases[2][2]), mutation_scale=MUT, lw=1, arrowstyle="-|>", color="b")
 
         return coord_arrow_X, coord_arrow_Y, coord_arrow_Z
-
 
 plotter = Plotting(.11)
 plotter.plot_AR(ARUCO_PATH, MOCAP_PATH, SHOW_ANG, SHOW_COMP)

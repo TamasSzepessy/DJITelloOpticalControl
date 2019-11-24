@@ -12,10 +12,6 @@ class PID(object):
             self.error_prev = error
         error_deriv = error - self.error_prev
         self.error_prev = error
-        # y = self.kp*error + self.ki*self.error_int + self.kd*error_deriv
-        # # limit to 100 for drone
-        # if y < -100: y = -100
-        # if y > 100:  y = 100
         return self.kp*error + self.ki*self.error_int + self.kd*error_deriv
 
     def reset(self):
