@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 from timeit import default_timer as timer
 import time
-from collections import deque
 from marker_class import Markers
 import transformations as tf
 import math
