@@ -14,9 +14,9 @@ import csv
 from pykalman import KalmanFilter
 
 SHOW_ANG = False # show angles static
-SHOW_COMP = False # show KF components
-ANIM = True # animate and save video
-SINGLE = False # only show the AR values
+SHOW_COMP = False # show Kalman filter components
+ANIM = False # animate and save video
+SINGLE = True # only show the AR values
 
 # correct origins with surface fit
 FIT_SURFACE = False
@@ -29,7 +29,7 @@ SMOOTHER = 5000 # for Kalman filter
 SET_EQUAL = True # for setting the axes limits
 
 # files
-FILE = 'vertical_test'
+FILE = 'flight_01'
 ARUCO_PATH = 'test_data/'+FILE+'.npz'
 MOCAP_PATH = 'test_data/'+FILE+'.csv'
 
@@ -322,7 +322,7 @@ class Plotting():
                 self.ax_AR.plot(xp[SHOW_START:], yp[SHOW_START:], zp_2[SHOW_START:], 'b--')
             
             self.ax_AR.plot(xp[SHOW_START:], yp[SHOW_START:], zp[SHOW_START:], 'k--')
-            plt.tight_layout()
+            #plt.tight_layout()
             plt.show()
 
     def fitSurface(self, order, points, m, x, y, z, corrigate):
