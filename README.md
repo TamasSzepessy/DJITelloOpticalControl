@@ -3,7 +3,20 @@ Using Damià Fuentes Escoté's library (https://github.com/damiafuentes/DJITello
 
 For my bachelor thesis I created a control system for the Tello with the inbuilt, monocular camera: autonomous navigation and data collection.
 
-Tested with Python 3.7 and OpenCV 4.1.0. and 7x7 ArUco dictionary.
+Tested with Python 3.7 and OpenCV 4.1.0 and 7x7 ArUco dictionary.
+
+## Requirements
+```
+djitellopy
+pygame
+opencv-python 4.1.0
+opencv-contrib 4.1.0
+numpy
+scipy
+pykalman
+matplotlib
+```
+
 
 ## Author
 
