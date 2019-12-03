@@ -116,7 +116,7 @@ class Plotting():
                 return
 
         animation = FuncAnimation(self.fig, update, frames=frame_list, interval=1, repeat=False, save_count=len(frame_list))
-        animation.save('results/'+FILE+'_2.mp4', fps=25.)
+        animation.save('results/'+FILE+'.mp4', fps=25.)
         print("Animation saved")
         self.index = 0
         self.markerEdge = self.markerEdge/5
